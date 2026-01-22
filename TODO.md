@@ -12,9 +12,8 @@
 
 ## Backlog
 
-- [ ] Telegram Bot - mobile access without native app
-- [ ] Deploy, make available on phone
-- [ ] Joplin integration (desktop only) - already implemented, use when Joplin desktop is running
+- [ ] Telegram Bot - alternative mobile access
+- [ ] Deploy to cloud hosting
 
 ---
 
