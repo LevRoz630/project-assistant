@@ -90,7 +90,14 @@ def mock_graph_client() -> MagicMock:
         }
     )
     mock.get_file_content = AsyncMock(return_value=b"# Test Note\n\nThis is a test.")
+    mock.get_item_by_path = AsyncMock(return_value={
+        "id": "item-123",
+        "name": "test.md",
+        "createdDateTime": "2024-01-15T08:00:00Z",
+        "lastModifiedDateTime": "2024-01-15T10:00:00Z",
+    })
     mock.upload_file = AsyncMock(return_value={"id": "file-123", "name": "test.md"})
+    mock.create_folder = AsyncMock(return_value={"id": "folder-123", "name": "NewFolder"})
     mock.delete_item = AsyncMock(return_value={"success": True})
     mock.list_task_lists = AsyncMock(
         return_value={

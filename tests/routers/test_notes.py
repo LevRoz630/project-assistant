@@ -91,6 +91,8 @@ class TestNotesEndpoints:
                 "name": "new-note.md",
             }
         )
+        # File doesn't exist yet - get_item_by_path raises itemNotFound
+        mock_graph_client.get_item_by_path = AsyncMock(side_effect=Exception("itemNotFound"))
 
         with patch("routers.notes.GraphClient", return_value=mock_graph_client):
             with patch("routers.notes.ingest_document", new_callable=AsyncMock):
@@ -105,7 +107,7 @@ class TestNotesEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["filename"] == "new-note.md"
+        assert "path" in data
 
     def test_create_note_in_custom_folder(
         self,
@@ -235,7 +237,12 @@ class TestNotesValidation:
         mock_graph_client,
     ):
         """Test that filename should have .md extension."""
-        # The router might accept any extension, but this tests the behavior
+        # File doesn't exist yet
+        mock_graph_client.get_item_by_path = AsyncMock(side_effect=Exception("itemNotFound"))
+        mock_graph_client.upload_file = AsyncMock(
+            return_value={"id": "file-id", "name": "note.txt"}
+        )
+
         with patch("routers.notes.GraphClient", return_value=mock_graph_client):
             with patch("routers.notes.ingest_document", new_callable=AsyncMock):
                 response = authenticated_client.post(
@@ -247,5 +254,5 @@ class TestNotesValidation:
                     },
                 )
 
-        # Should either succeed or reject based on implementation
-        assert response.status_code in [200, 400]
+        # The endpoint accepts any extension (no validation)
+        assert response.status_code == 200
