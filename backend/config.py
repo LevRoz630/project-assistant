@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     # ChromaDB
     chroma_persist_directory: str = "./data/chroma"
 
+    # Telegram (get API credentials from https://my.telegram.org)
+    telegram_api_id: int = 0
+    telegram_api_hash: str = ""
+    telegram_phone: str = ""  # Your phone number with country code
+    telegram_session_path: str = "./data/telegram_session"
+
     # Frontend
     frontend_url: str = "http://localhost:5173"
 

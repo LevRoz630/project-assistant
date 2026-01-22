@@ -14,6 +14,7 @@ from routers.notes import router as notes_router
 from routers.onenote import router as onenote_router
 from routers.sync import router as sync_router
 from routers.tasks import router as tasks_router
+from routers.telegram import router as telegram_router
 
 settings = get_settings()
 
@@ -58,6 +59,7 @@ app.include_router(onenote_router)
 app.include_router(tasks_router)
 app.include_router(calendar_router)
 app.include_router(email_router)
+app.include_router(telegram_router)
 app.include_router(sync_router)
 app.include_router(actions_router)
 

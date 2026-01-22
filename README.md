@@ -1,6 +1,7 @@
 # Personal AI Assistant
 
 A unified web application for personal productivity: AI chat with RAG, notes/diary, tasks, and calendar — all integrated with Microsoft 365.
+Goal of hte projects is to minimize the time spent on scrolling and useless information consumption.
 
 ## Features
 

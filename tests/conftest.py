@@ -22,6 +22,9 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "test-anthropic-key")
 os.environ.setdefault("OPENAI_API_KEY", "test-openai-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("DEBUG", "true")
+os.environ.setdefault("TELEGRAM_API_ID", "12345")
+os.environ.setdefault("TELEGRAM_API_HASH", "test-api-hash")
+os.environ.setdefault("TELEGRAM_PHONE", "+1234567890")
 
 
 @pytest.fixture(scope="session")
