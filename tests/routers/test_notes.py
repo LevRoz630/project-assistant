@@ -182,8 +182,8 @@ class TestNotesEndpoints:
         mock_graph_client,
     ):
         """Test getting or creating today's diary entry."""
-        # First call returns 404 (file doesn't exist)
-        mock_graph_client.get_file_content = AsyncMock(side_effect=Exception("File not found"))
+        # File doesn't exist - must contain "itemNotFound" to trigger creation
+        mock_graph_client.get_file_content = AsyncMock(side_effect=Exception("itemNotFound"))
         mock_graph_client.upload_file = AsyncMock(
             return_value={
                 "id": "new-diary-id",
@@ -198,7 +198,8 @@ class TestNotesEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert "content" in data
-        assert data["folder"] == "Diary"
+        assert "filename" in data
+        assert data["created"] is True
 
 
 class TestNotesValidation:

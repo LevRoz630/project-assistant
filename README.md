@@ -91,7 +91,7 @@ Open http://localhost:5173 in your browser.
 ## Docker Setup
 
 ```bash
-docker-compose up --build
+docker-compose up --build 
 ```
 
 ## Project Structure

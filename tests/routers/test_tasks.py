@@ -160,18 +160,23 @@ class TestTasksEndpoints:
 class TestTasksValidation:
     """Tests for tasks input validation."""
 
-    def test_create_task_missing_list_id(
+    def test_create_task_without_list_id_uses_default(
         self,
         authenticated_client: TestClient,
         mock_get_access_token,
+        mock_graph_client,
     ):
-        """Test creating task without list_id."""
-        response = authenticated_client.post(
-            "/tasks/create",
-            json={"title": "Task without list"},
-        )
+        """Test creating task without list_id uses default list."""
+        # Endpoint should find default list automatically
+        with patch("routers.tasks.GraphClient", return_value=mock_graph_client):
+            response = authenticated_client.post(
+                "/tasks/create",
+                json={"title": "Task without list"},
+            )
 
-        assert response.status_code == 422
+        # Should succeed using default list
+        assert response.status_code == 200
+        mock_graph_client.create_task.assert_called_once()
 
     def test_create_task_missing_title(
         self,

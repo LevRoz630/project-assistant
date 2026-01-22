@@ -242,7 +242,6 @@ class TestActionExecution:
         """Test executing create task action."""
         from datetime import datetime
 
-        from routers.actions import _execute_action
         from services.actions import ProposedAction
 
         action = ProposedAction(
@@ -255,7 +254,10 @@ class TestActionExecution:
             updated_at=datetime.now(),
         )
 
-        result = await _execute_action(action, "test-token")
+        with patch("routers.actions.GraphClient", return_value=mock_graph_client):
+            from routers.actions import _execute_action
+
+            result = await _execute_action(action, "test-token")
 
         assert "task_id" in result
         mock_graph_client.create_task.assert_called_once()
