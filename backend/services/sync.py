@@ -84,10 +84,11 @@ async def _full_sync(client: GraphClient) -> dict:
     try:
         # Get all folders
         folders_result = await client.list_folder(base_folder)
+        # Skip system/hidden folders (.obsidian, _system, etc.)
         folders = [
             item["name"]
             for item in folders_result.get("value", [])
-            if "folder" in item and not item["name"].startswith("_")
+            if "folder" in item and not item["name"].startswith("_") and not item["name"].startswith(".")
         ]
     except Exception as e:
         stats["errors"].append(f"Failed to list folders: {e}")

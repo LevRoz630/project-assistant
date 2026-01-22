@@ -53,6 +53,8 @@ async def list_folders(client: GraphClient = Depends(get_graph_client)):
     """List all note folders."""
     try:
         result = await client.list_folder(settings.onedrive_base_folder)
+        # Exclude system/hidden folders (.obsidian, _system, etc.)
+        excluded = {".obsidian", ".trash", "_system"}
         folders = [
             {
                 "name": item["name"],
@@ -61,7 +63,7 @@ async def list_folders(client: GraphClient = Depends(get_graph_client)):
                 "modified": item.get("lastModifiedDateTime"),
             }
             for item in result.get("value", [])
-            if "folder" in item
+            if "folder" in item and item["name"] not in excluded and not item["name"].startswith(".")
         ]
         return {"folders": folders}
     except Exception as e:
