@@ -82,10 +82,10 @@ def mock_graph_client() -> MagicMock:
     mock.list_folder = AsyncMock(
         return_value={
             "value": [
-                {"name": "Diary", "folder": {}},
-                {"name": "Projects", "folder": {}},
-                {"name": "Study", "folder": {}},
-                {"name": "Inbox", "folder": {}},
+                {"id": "folder-1", "name": "Diary", "folder": {}, "createdDateTime": "2024-01-01T00:00:00Z", "lastModifiedDateTime": "2024-01-15T10:00:00Z"},
+                {"id": "folder-2", "name": "Projects", "folder": {}, "createdDateTime": "2024-01-01T00:00:00Z", "lastModifiedDateTime": "2024-01-15T10:00:00Z"},
+                {"id": "folder-3", "name": "Study", "folder": {}, "createdDateTime": "2024-01-01T00:00:00Z", "lastModifiedDateTime": "2024-01-15T10:00:00Z"},
+                {"id": "folder-4", "name": "Inbox", "folder": {}, "createdDateTime": "2024-01-01T00:00:00Z", "lastModifiedDateTime": "2024-01-15T10:00:00Z"},
             ]
         }
     )
@@ -163,9 +163,27 @@ def mock_graph_client() -> MagicMock:
 
 @pytest.fixture
 def mock_get_access_token(mock_access_token: str):
-    """Patch get_access_token to return a mock token."""
-    with patch("auth.get_access_token", return_value=mock_access_token) as mock:
-        yield mock
+    """Patch get_access_token and get_access_token_for_service at all router locations."""
+    # Need to patch at each router's import location, not at auth module
+    patches = [
+        # get_access_token imports
+        patch("routers.actions.get_access_token", return_value=mock_access_token),
+        patch("routers.chat.get_access_token", return_value=mock_access_token),
+        patch("routers.email.get_access_token", return_value=mock_access_token),
+        patch("routers.sync.get_access_token", return_value=mock_access_token),
+        # get_access_token_for_service imports
+        patch("routers.calendar.get_access_token_for_service", return_value=mock_access_token),
+        patch("routers.notes.get_access_token_for_service", return_value=mock_access_token),
+        patch("routers.tasks.get_access_token_for_service", return_value=mock_access_token),
+    ]
+
+    for p in patches:
+        p.start()
+
+    yield mock_access_token
+
+    for p in patches:
+        p.stop()
 
 
 @pytest.fixture

@@ -69,16 +69,22 @@ class TestGenerateResponse:
     """Tests for generate_response function."""
 
     @pytest.fixture
-    def mock_llm(self):
-        """Create mock LLM."""
+    def mock_chain(self):
+        """Create mock chain for LangChain."""
+        mock_response = MagicMock()
+        mock_response.content = "AI response here"
+
         mock = MagicMock()
-        mock.ainvoke = AsyncMock(return_value=MagicMock(content="AI response here"))
+        mock.ainvoke = AsyncMock(return_value=mock_response)
         return mock
 
     @pytest.mark.asyncio
-    async def test_generate_response_basic(self, mock_llm):
+    async def test_generate_response_basic(self, mock_chain):
         """Test basic response generation."""
-        with patch("services.ai.get_llm", return_value=mock_llm):
+        with patch("services.ai.create_chat_prompt") as mock_prompt:
+            # Make prompt | llm return our mock chain
+            mock_prompt.return_value.__or__ = MagicMock(return_value=mock_chain)
+
             from services.ai import generate_response
 
             response = await generate_response(
@@ -87,12 +93,14 @@ class TestGenerateResponse:
             )
 
             assert response == "AI response here"
-            mock_llm.ainvoke.assert_called_once()
+            mock_chain.ainvoke.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_generate_response_with_context(self, mock_llm):
+    async def test_generate_response_with_context(self, mock_chain):
         """Test response generation with context."""
-        with patch("services.ai.get_llm", return_value=mock_llm):
+        with patch("services.ai.create_chat_prompt") as mock_prompt:
+            mock_prompt.return_value.__or__ = MagicMock(return_value=mock_chain)
+
             from services.ai import generate_response
 
             response = await generate_response(
@@ -103,13 +111,15 @@ class TestGenerateResponse:
 
             assert response == "AI response here"
             # Verify context was passed
-            call_args = mock_llm.ainvoke.call_args
+            call_args = mock_chain.ainvoke.call_args
             assert "Context from notes" in str(call_args)
 
     @pytest.mark.asyncio
-    async def test_generate_response_with_tasks_context(self, mock_llm):
+    async def test_generate_response_with_tasks_context(self, mock_chain):
         """Test response generation with tasks context."""
-        with patch("services.ai.get_llm", return_value=mock_llm):
+        with patch("services.ai.create_chat_prompt") as mock_prompt:
+            mock_prompt.return_value.__or__ = MagicMock(return_value=mock_chain)
+
             from services.ai import generate_response
 
             response = await generate_response(
@@ -119,13 +129,15 @@ class TestGenerateResponse:
             )
 
             assert response == "AI response here"
-            call_args = mock_llm.ainvoke.call_args
+            call_args = mock_chain.ainvoke.call_args
             assert "Your tasks" in str(call_args)
 
     @pytest.mark.asyncio
-    async def test_generate_response_with_calendar_context(self, mock_llm):
+    async def test_generate_response_with_calendar_context(self, mock_chain):
         """Test response generation with calendar context."""
-        with patch("services.ai.get_llm", return_value=mock_llm):
+        with patch("services.ai.create_chat_prompt") as mock_prompt:
+            mock_prompt.return_value.__or__ = MagicMock(return_value=mock_chain)
+
             from services.ai import generate_response
 
             response = await generate_response(
@@ -135,13 +147,15 @@ class TestGenerateResponse:
             )
 
             assert response == "AI response here"
-            call_args = mock_llm.ainvoke.call_args
+            call_args = mock_chain.ainvoke.call_args
             assert "Your calendar" in str(call_args)
 
     @pytest.mark.asyncio
-    async def test_generate_response_with_chat_history(self, mock_llm):
+    async def test_generate_response_with_chat_history(self, mock_chain):
         """Test response generation with chat history."""
-        with patch("services.ai.get_llm", return_value=mock_llm):
+        with patch("services.ai.create_chat_prompt") as mock_prompt:
+            mock_prompt.return_value.__or__ = MagicMock(return_value=mock_chain)
+
             from services.ai import generate_response
 
             history = [
@@ -162,9 +176,8 @@ class TestGenerateResponseStream:
     """Tests for generate_response_stream function."""
 
     @pytest.fixture
-    def mock_streaming_llm(self):
-        """Create mock streaming LLM."""
-        mock = MagicMock()
+    def mock_streaming_chain(self):
+        """Create mock chain for streaming."""
 
         async def mock_astream(*args, **kwargs):
             chunks = [
@@ -175,13 +188,16 @@ class TestGenerateResponseStream:
             for chunk in chunks:
                 yield chunk
 
+        mock = MagicMock()
         mock.astream = mock_astream
         return mock
 
     @pytest.mark.asyncio
-    async def test_generate_response_stream(self, mock_streaming_llm):
+    async def test_generate_response_stream(self, mock_streaming_chain):
         """Test streaming response generation."""
-        with patch("services.ai.get_llm", return_value=mock_streaming_llm):
+        with patch("services.ai.create_chat_prompt") as mock_prompt:
+            mock_prompt.return_value.__or__ = MagicMock(return_value=mock_streaming_chain)
+
             from services.ai import generate_response_stream
 
             chunks = []
@@ -195,9 +211,11 @@ class TestGenerateResponseStream:
             assert "".join(chunks) == "Hello there!"
 
     @pytest.mark.asyncio
-    async def test_generate_response_stream_with_context(self, mock_streaming_llm):
+    async def test_generate_response_stream_with_context(self, mock_streaming_chain):
         """Test streaming with context."""
-        with patch("services.ai.get_llm", return_value=mock_streaming_llm):
+        with patch("services.ai.create_chat_prompt") as mock_prompt:
+            mock_prompt.return_value.__or__ = MagicMock(return_value=mock_streaming_chain)
+
             from services.ai import generate_response_stream
 
             chunks = []

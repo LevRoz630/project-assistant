@@ -275,7 +275,7 @@ async def create_today_diary(
 async def _ensure_folder_structure(client: GraphClient, specific_folder: str | None = None):
     """Ensure the PersonalAI folder structure exists."""
     base = settings.onedrive_base_folder
-    folders = [specific_folder] if specific_folder else ["Diary", "Projects", "Study", "Inbox"]
+    folders = [specific_folder] if specific_folder else ["Diary", "Projects", "Study", "Inbox", "_system"]
 
     # Create base folder
     try:
@@ -291,3 +291,13 @@ async def _ensure_folder_structure(client: GraphClient, specific_folder: str | N
         except Exception:
             with contextlib.suppress(Exception):
                 await client.create_folder(base, folder)
+
+
+@router.post("/init")
+async def initialize_folders(client: GraphClient = Depends(get_graph_client)):
+    """Initialize the PersonalAI folder structure in OneDrive."""
+    await _ensure_folder_structure(client)
+    return {
+        "status": "initialized",
+        "folders": ["Diary", "Projects", "Study", "Inbox", "_system"],
+    }

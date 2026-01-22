@@ -1,5 +1,8 @@
 """Actions router for managing AI-proposed actions."""
 
+import json
+from datetime import datetime
+
 from auth import get_access_token
 from config import get_settings
 from fastapi import APIRouter, HTTPException, Request
@@ -15,6 +18,74 @@ from services.vectors import ingest_document
 
 router = APIRouter(prefix="/actions", tags=["actions"])
 settings = get_settings()
+
+ACTIONS_FILE_PATH = "_system/pending_actions.json"
+
+
+async def _load_actions_from_cloud(token: str) -> list[dict]:
+    """Load actions from OneDrive."""
+    client = GraphClient(token)
+    file_path = f"{settings.onedrive_base_folder}/{ACTIONS_FILE_PATH}"
+
+    try:
+        content = await client.get_file_content(file_path)
+        data = json.loads(content.decode("utf-8"))
+        return data.get("actions", [])
+    except Exception:
+        return []
+
+
+async def _save_actions_to_cloud(token: str, actions: list[dict]):
+    """Save actions to OneDrive."""
+    client = GraphClient(token)
+    file_path = f"{settings.onedrive_base_folder}/{ACTIONS_FILE_PATH}"
+
+    content = json.dumps({"actions": actions, "updated_at": datetime.now().isoformat()}, indent=2)
+    try:
+        await client.upload_file(file_path, content.encode("utf-8"))
+    except Exception:
+        pass  # Don't fail if we can't save to cloud
+
+
+async def _sync_actions_from_cloud(token: str):
+    """Sync in-memory actions with OneDrive."""
+    store = get_action_store()
+    cloud_actions = await _load_actions_from_cloud(token)
+
+    for action_data in cloud_actions:
+        if not store.get(action_data["id"]):
+            # Reconstruct the action from stored data
+            action = ProposedAction(
+                id=action_data["id"],
+                type=ActionType(action_data["type"]),
+                status=ActionStatus(action_data["status"]),
+                data=action_data["data"],
+                reason=action_data["reason"],
+                created_at=datetime.fromisoformat(action_data["created_at"]),
+                updated_at=datetime.fromisoformat(action_data["updated_at"]),
+                error=action_data.get("error"),
+            )
+            store._actions[action.id] = action
+
+
+async def _persist_actions_to_cloud(token: str):
+    """Persist current actions to OneDrive."""
+    store = get_action_store()
+    actions_data = []
+
+    for action in store._actions.values():
+        actions_data.append({
+            "id": action.id,
+            "type": action.type.value,
+            "status": action.status.value,
+            "data": action.data,
+            "reason": action.reason,
+            "created_at": action.created_at.isoformat(),
+            "updated_at": action.updated_at.isoformat(),
+            "error": action.error,
+        })
+
+    await _save_actions_to_cloud(token, actions_data)
 
 
 class CreateActionRequest(BaseModel):
@@ -56,6 +127,10 @@ async def get_pending_actions(request: Request):
     session_id = request.cookies.get("session_id")
     if not session_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    token = get_access_token(session_id)
+    if token:
+        await _sync_actions_from_cloud(token)
 
     store = get_action_store()
     actions = store.list_pending()
@@ -105,6 +180,7 @@ async def create_action(request: Request, action_request: CreateActionRequest):
     if not session_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
+    token = get_access_token(session_id)
     store = get_action_store()
 
     action = store.create(
@@ -112,6 +188,10 @@ async def create_action(request: Request, action_request: CreateActionRequest):
         data=action_request.data,
         reason=action_request.reason,
     )
+
+    # Persist to OneDrive
+    if token:
+        await _persist_actions_to_cloud(token)
 
     return _action_to_response(action)
 
@@ -142,6 +222,7 @@ async def approve_action(request: Request, action_id: str):
     try:
         result = await _execute_action(action, token)
         store.update_status(action_id, ActionStatus.EXECUTED)
+        await _persist_actions_to_cloud(token)
         return {
             "status": "executed",
             "action": _action_to_response(action),
@@ -149,6 +230,7 @@ async def approve_action(request: Request, action_id: str):
         }
     except Exception as e:
         store.update_status(action_id, ActionStatus.FAILED, str(e))
+        await _persist_actions_to_cloud(token)
         raise HTTPException(status_code=500, detail=f"Action execution failed: {e}") from e
 
 
@@ -158,6 +240,10 @@ async def reject_action(request: Request, action_id: str):
     session_id = request.cookies.get("session_id")
     if not session_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    token = get_access_token(session_id)
+    if not token:
+        raise HTTPException(status_code=401, detail="Session expired")
 
     store = get_action_store()
     action = store.get(action_id)
@@ -171,6 +257,7 @@ async def reject_action(request: Request, action_id: str):
         )
 
     store.update_status(action_id, ActionStatus.REJECTED)
+    await _persist_actions_to_cloud(token)
 
     return {
         "status": "rejected",
@@ -185,9 +272,12 @@ async def delete_action(request: Request, action_id: str):
     if not session_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
+    token = get_access_token(session_id)
     store = get_action_store()
 
     if store.delete(action_id):
+        if token:
+            await _persist_actions_to_cloud(token)
         return {"status": "deleted", "id": action_id}
     else:
         raise HTTPException(status_code=404, detail="Action not found")

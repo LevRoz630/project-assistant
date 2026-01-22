@@ -106,9 +106,9 @@ class TestSyncEndpoints:
         mock_get_access_token,
     ):
         """Test stopping sync scheduler."""
-        # First start it
+        # Mock the scheduler to avoid asyncio.create_task
         scheduler = get_scheduler()
-        scheduler.start("test-token", 5)
+        scheduler._running = True  # Simulate started state
 
         response = authenticated_client.post("/sync/scheduler/stop")
 
@@ -168,8 +168,9 @@ class TestSyncStatusDetails:
         mock_get_access_token,
     ):
         """Test that status shows scheduler state."""
+        # Mock the scheduler to avoid asyncio.create_task
         scheduler = get_scheduler()
-        scheduler.start("test-token", 5)
+        scheduler._running = True  # Simulate started state
 
         try:
             response = authenticated_client.get("/sync/status")
@@ -178,4 +179,4 @@ class TestSyncStatusDetails:
             data = response.json()
             assert data["scheduler_running"] is True
         finally:
-            scheduler.stop()
+            scheduler._running = False

@@ -59,11 +59,16 @@ class TestSyncScheduler:
         """Test starting and stopping scheduler."""
         scheduler = SyncScheduler()
 
-        # Start scheduler
-        scheduler.start("test-token", interval_minutes=10)
-        assert scheduler.is_running is True
-        assert scheduler._interval_minutes == 10
-        assert scheduler._access_token == "test-token"
+        # Mock asyncio.create_task to avoid event loop requirement
+        with patch("asyncio.create_task") as mock_create_task:
+            mock_create_task.return_value = MagicMock()
+
+            # Start scheduler
+            scheduler.start("test-token", interval_minutes=10)
+            assert scheduler.is_running is True
+            assert scheduler._interval_minutes == 10
+            assert scheduler._access_token == "test-token"
+            mock_create_task.assert_called_once()
 
         # Stop scheduler
         scheduler.stop()

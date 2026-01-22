@@ -40,8 +40,10 @@ class TestNotesEndpoints:
             return_value={
                 "value": [
                     {
+                        "id": "file-1",
                         "name": "2024-01-15.md",
                         "file": {},
+                        "createdDateTime": "2024-01-15T08:00:00Z",
                         "lastModifiedDateTime": "2024-01-15T10:00:00Z",
                         "size": 1024,
                     }
@@ -105,23 +107,31 @@ class TestNotesEndpoints:
         data = response.json()
         assert data["filename"] == "new-note.md"
 
-    def test_create_note_invalid_folder(
+    def test_create_note_in_custom_folder(
         self,
         authenticated_client: TestClient,
         mock_get_access_token,
+        mock_graph_client,
     ):
-        """Test creating note in invalid folder."""
-        response = authenticated_client.post(
-            "/notes/create",
-            json={
-                "folder": "InvalidFolder",
-                "filename": "note.md",
-                "content": "Content",
-            },
+        """Test creating note in a custom folder (endpoint creates folder if needed)."""
+        mock_graph_client.upload_file = AsyncMock(
+            return_value={"id": "new-file-id", "name": "note.md"}
         )
+        mock_graph_client.get_item_by_path = AsyncMock(side_effect=Exception("itemNotFound"))
 
-        assert response.status_code == 400
-        assert "Invalid folder" in response.json()["detail"]
+        with patch("routers.notes.GraphClient", return_value=mock_graph_client):
+            with patch("routers.notes.ingest_document", new_callable=AsyncMock):
+                response = authenticated_client.post(
+                    "/notes/create",
+                    json={
+                        "folder": "CustomFolder",
+                        "filename": "note.md",
+                        "content": "Content",
+                    },
+                )
+
+        # Endpoint should succeed - it creates folders as needed
+        assert response.status_code == 200
 
     def test_update_note(
         self,
