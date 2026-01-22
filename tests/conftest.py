@@ -25,6 +25,8 @@ os.environ.setdefault("DEBUG", "true")
 os.environ.setdefault("TELEGRAM_API_ID", "12345")
 os.environ.setdefault("TELEGRAM_API_HASH", "test-api-hash")
 os.environ.setdefault("TELEGRAM_PHONE", "+1234567890")
+os.environ.setdefault("GITHUB_TOKEN", "ghp_test-github-token")
+os.environ.setdefault("GITHUB_USERNAME", "testuser")
 
 
 @pytest.fixture(scope="session")

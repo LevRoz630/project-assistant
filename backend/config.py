@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     telegram_phone: str = ""  # Your phone number with country code
     telegram_session_path: str = "./data/telegram_session"
 
+    # GitHub (get token from https://github.com/settings/tokens)
+    github_token: str = ""
+    github_username: str = ""  # Optional, for filtering
+
     # Frontend
     frontend_url: str = "http://localhost:5173"
 

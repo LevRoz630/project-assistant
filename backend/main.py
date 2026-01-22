@@ -10,6 +10,7 @@ from routers.actions import router as actions_router
 from routers.calendar import router as calendar_router
 from routers.chat import router as chat_router
 from routers.email import router as email_router
+from routers.github import router as github_router
 from routers.notes import router as notes_router
 from routers.onenote import router as onenote_router
 from routers.sync import router as sync_router
@@ -60,6 +61,7 @@ app.include_router(tasks_router)
 app.include_router(calendar_router)
 app.include_router(email_router)
 app.include_router(telegram_router)
+app.include_router(github_router)
 app.include_router(sync_router)
 app.include_router(actions_router)
 

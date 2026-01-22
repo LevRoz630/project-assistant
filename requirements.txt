@@ -25,6 +25,9 @@ chromadb>=0.4.22
 # Telegram
 telethon>=1.34.0
 
+# GitHub
+PyGithub>=2.1.0
+
 # OpenAI (for embeddings)
 openai>=1.10.0
 tiktoken>=0.5.2
