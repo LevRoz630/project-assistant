@@ -276,3 +276,109 @@ class GraphClient:
         }
 
         return await self._request("GET", "/me/messages", params=params)
+
+    # ==================== OneNote ====================
+
+    async def list_notebooks(self) -> dict:
+        """List all OneNote notebooks."""
+        return await self._request("GET", "/me/onenote/notebooks")
+
+    async def get_notebook(self, notebook_id: str) -> dict:
+        """Get a specific notebook."""
+        return await self._request("GET", f"/me/onenote/notebooks/{notebook_id}")
+
+    async def create_notebook(self, display_name: str) -> dict:
+        """Create a new notebook."""
+        return await self._request(
+            "POST",
+            "/me/onenote/notebooks",
+            json={"displayName": display_name},
+        )
+
+    async def list_sections(self, notebook_id: str | None = None) -> dict:
+        """List sections, optionally filtered by notebook."""
+        if notebook_id:
+            return await self._request(
+                "GET", f"/me/onenote/notebooks/{notebook_id}/sections"
+            )
+        return await self._request("GET", "/me/onenote/sections")
+
+    async def get_section(self, section_id: str) -> dict:
+        """Get a specific section."""
+        return await self._request("GET", f"/me/onenote/sections/{section_id}")
+
+    async def create_section(self, notebook_id: str, display_name: str) -> dict:
+        """Create a new section in a notebook."""
+        return await self._request(
+            "POST",
+            f"/me/onenote/notebooks/{notebook_id}/sections",
+            json={"displayName": display_name},
+        )
+
+    async def list_pages(
+        self, section_id: str | None = None, top: int = 50
+    ) -> dict:
+        """List pages, optionally filtered by section."""
+        params = {"$top": str(top), "$orderby": "lastModifiedDateTime desc"}
+        if section_id:
+            return await self._request(
+                "GET", f"/me/onenote/sections/{section_id}/pages", params=params
+            )
+        return await self._request("GET", "/me/onenote/pages", params=params)
+
+    async def get_page(self, page_id: str) -> dict:
+        """Get page metadata."""
+        return await self._request("GET", f"/me/onenote/pages/{page_id}")
+
+    async def get_page_content(self, page_id: str) -> str:
+        """Get page content as HTML."""
+        content = await self._request_content(f"/me/onenote/pages/{page_id}/content")
+        return content.decode("utf-8")
+
+    async def create_page(self, section_id: str, title: str, html_content: str) -> dict:
+        """Create a new page in a section."""
+        # OneNote requires multipart/form-data with Presentation header
+        full_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<title>{title}</title>
+</head>
+<body>
+{html_content}
+</body>
+</html>"""
+
+        url = f"{GRAPH_BASE_URL}/me/onenote/sections/{section_id}/pages"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "text/html",
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url=url,
+                headers=headers,
+                content=full_html.encode("utf-8"),
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def update_page(self, page_id: str, html_content: str) -> dict:
+        """Update page content using PATCH."""
+        # OneNote PATCH uses JSON patch format
+        return await self._request(
+            "PATCH",
+            f"/me/onenote/pages/{page_id}/content",
+            json=[
+                {
+                    "target": "body",
+                    "action": "replace",
+                    "content": html_content,
+                }
+            ],
+        )
+
+    async def delete_page(self, page_id: str) -> dict:
+        """Delete a page."""
+        return await self._request("DELETE", f"/me/onenote/pages/{page_id}")

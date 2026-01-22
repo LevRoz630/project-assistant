@@ -26,6 +26,7 @@ class Settings(BaseSettings):
         "Tasks.ReadWrite",  # Microsoft To Do
         "Calendars.ReadWrite",  # Calendar
         "Mail.Read",  # Email (read only)
+        "Notes.ReadWrite",  # OneNote
     ]
 
     # AI Configuration

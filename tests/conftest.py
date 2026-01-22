@@ -167,6 +167,64 @@ def mock_graph_client() -> MagicMock:
         }
     )
     mock.search_messages = AsyncMock(return_value={"value": []})
+    # OneNote mocks
+    mock.list_notebooks = AsyncMock(
+        return_value={
+            "value": [
+                {
+                    "id": "notebook-1",
+                    "displayName": "PersonalAI",
+                    "createdDateTime": "2024-01-01T00:00:00Z",
+                    "lastModifiedDateTime": "2024-01-15T10:00:00Z",
+                }
+            ]
+        }
+    )
+    mock.create_notebook = AsyncMock(
+        return_value={"id": "notebook-new", "displayName": "New Notebook"}
+    )
+    mock.list_sections = AsyncMock(
+        return_value={
+            "value": [
+                {
+                    "id": "section-1",
+                    "displayName": "Diary",
+                    "createdDateTime": "2024-01-01T00:00:00Z",
+                    "lastModifiedDateTime": "2024-01-15T10:00:00Z",
+                }
+            ]
+        }
+    )
+    mock.create_section = AsyncMock(
+        return_value={"id": "section-new", "displayName": "New Section"}
+    )
+    mock.list_pages = AsyncMock(
+        return_value={
+            "value": [
+                {
+                    "id": "page-1",
+                    "title": "2024-01-15",
+                    "createdDateTime": "2024-01-15T08:00:00Z",
+                    "lastModifiedDateTime": "2024-01-15T10:00:00Z",
+                    "parentSection": {"displayName": "Diary"},
+                }
+            ]
+        }
+    )
+    mock.get_page = AsyncMock(
+        return_value={
+            "id": "page-1",
+            "title": "Test Page",
+            "createdDateTime": "2024-01-15T08:00:00Z",
+            "lastModifiedDateTime": "2024-01-15T10:00:00Z",
+        }
+    )
+    mock.get_page_content = AsyncMock(
+        return_value="<html><body><h1>Test</h1><p>Content here.</p></body></html>"
+    )
+    mock.create_page = AsyncMock(return_value={"id": "page-new", "title": "New Page"})
+    mock.update_page = AsyncMock(return_value={"success": True})
+    mock.delete_page = AsyncMock(return_value={"success": True})
     return mock
 
 
@@ -183,6 +241,7 @@ def mock_get_access_token(mock_access_token: str):
         # get_access_token_for_service imports
         patch("routers.calendar.get_access_token_for_service", return_value=mock_access_token),
         patch("routers.notes.get_access_token_for_service", return_value=mock_access_token),
+        patch("routers.onenote.get_access_token_for_service", return_value=mock_access_token),
         patch("routers.tasks.get_access_token_for_service", return_value=mock_access_token),
     ]
 
