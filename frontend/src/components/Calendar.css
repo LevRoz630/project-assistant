@@ -1,0 +1,144 @@
+.view-toggle {
+  display: flex;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.view-btn {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.view-btn:hover {
+  color: var(--text-primary);
+}
+
+.view-btn.active {
+  background: var(--accent);
+  color: white;
+}
+
+.date-header {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+.events-week .day-section {
+  margin-bottom: 32px;
+}
+
+.events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.event-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.event-item:hover {
+  border-color: var(--accent);
+}
+
+.event-item.all-day {
+  border-left: 3px solid var(--accent);
+}
+
+.event-time {
+  width: 100px;
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.event-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.event-subject {
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.event-location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+.event-organizer {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.event-delete {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 4px;
+  opacity: 0;
+  transition: all 0.2s;
+}
+
+.event-item:hover .event-delete {
+  opacity: 1;
+}
+
+.event-delete:hover {
+  color: var(--error);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Modal overrides for calendar */
+.modal {
+  max-width: 450px;
+}
+
+.modal input[type="date"],
+.modal input[type="time"] {
+  color-scheme: dark;
+}
+
+@media (max-width: 768px) {
+  .event-item {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .event-time {
+    width: auto;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,228 @@
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import './Notes.css'
+
+const API_BASE = 'http://localhost:8000'
+
+function Notes() {
+  const [folders, setFolders] = useState([])
+  const [activeFolder, setActiveFolder] = useState('Diary')
+  const [notes, setNotes] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showNewNote, setShowNewNote] = useState(false)
+  const [newNoteName, setNewNoteName] = useState('')
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    loadFolders()
+  }, [])
+
+  useEffect(() => {
+    if (activeFolder) {
+      loadNotes(activeFolder)
+    }
+  }, [activeFolder])
+
+  const loadFolders = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/notes/folders`, {
+        credentials: 'include',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setFolders(data.folders || ['Diary', 'Projects', 'Study', 'Inbox'])
+      }
+    } catch (error) {
+      console.error('Failed to load folders:', error)
+      setFolders(['Diary', 'Projects', 'Study', 'Inbox'])
+    }
+  }
+
+  const loadNotes = async (folder) => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/notes/list/${folder}`, {
+        credentials: 'include',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setNotes(data.notes || [])
+      }
+    } catch (error) {
+      console.error('Failed to load notes:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const createNote = async () => {
+    if (!newNoteName.trim()) return
+
+    const filename = newNoteName.endsWith('.md') ? newNoteName : `${newNoteName}.md`
+
+    try {
+      const res = await fetch(`${API_BASE}/notes/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          folder: activeFolder,
+          filename,
+          content: `# ${newNoteName.replace('.md', '')}\n\n`,
+        }),
+      })
+
+      if (res.ok) {
+        setShowNewNote(false)
+        setNewNoteName('')
+        navigate(`/notes/${activeFolder}/${filename}`)
+      }
+    } catch (error) {
+      console.error('Failed to create note:', error)
+    }
+  }
+
+  const createTodayDiary = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/notes/diary/today`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        navigate(`/notes/Diary/${data.filename}`)
+      }
+    } catch (error) {
+      console.error('Failed to create diary:', error)
+    }
+  }
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return ''
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+
+  return (
+    <>
+      <div className="content-header">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2>Notes</h2>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            {activeFolder === 'Diary' && (
+              <button className="btn btn-secondary" onClick={createTodayDiary}>
+                Today's Diary
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={() => setShowNewNote(true)}>
+              New Note
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="content-body">
+        <div className="notes-layout">
+          <div className="folders-list">
+            {(Array.isArray(folders) ? folders : ['Diary', 'Projects', 'Study', 'Inbox']).map((folder) => {
+              const name = typeof folder === 'string' ? folder : folder.name
+              return (
+                <button
+                  key={name}
+                  className={`folder-item ${activeFolder === name ? 'active' : ''}`}
+                  onClick={() => setActiveFolder(name)}
+                >
+                  <FolderIcon />
+                  {name}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="notes-list">
+            {loading ? (
+              <div className="loading">
+                <div className="loading-spinner"></div>
+              </div>
+            ) : notes.length === 0 ? (
+              <div className="empty-state">
+                <h3>No notes in {activeFolder}</h3>
+                <p>Create your first note to get started</p>
+              </div>
+            ) : (
+              notes.map((note) => (
+                <div
+                  key={note.id || note.name}
+                  className="note-item"
+                  onClick={() => navigate(`/notes/${activeFolder}/${note.name}`)}
+                >
+                  <div className="note-icon">
+                    <NoteIcon />
+                  </div>
+                  <div className="note-info">
+                    <div className="note-name">{note.name.replace('.md', '')}</div>
+                    <div className="note-meta">
+                      Modified {formatDate(note.modified)}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {showNewNote && (
+          <div className="modal-overlay" onClick={() => setShowNewNote(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <h3>New Note</h3>
+              <div className="form-group">
+                <label className="form-label">Note Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="my-note"
+                  value={newNoteName}
+                  onChange={(e) => setNewNoteName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && createNote()}
+                  autoFocus
+                />
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-secondary" onClick={() => setShowNewNote(false)}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary" onClick={createNote}>
+                  Create
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+function FolderIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    </svg>
+  )
+}
+
+function NoteIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+    </svg>
+  )
+}
+
+export default Notes

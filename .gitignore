@@ -1,3 +1,23 @@
+# Claude Code
+.claude/
+nul
+tmpclaude-*
+
+# Node.js
+node_modules/
+.npm
+
+# Frontend build and test output
+frontend/dist/
+frontend/coverage/
+
+# Local data
+data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
