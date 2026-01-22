@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import './Actions.css'
-
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config'
 
 function Actions() {
   const [pendingActions, setPendingActions] = useState([])

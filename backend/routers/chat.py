@@ -12,9 +12,19 @@ from pydantic import BaseModel
 from services.actions import ActionType, get_action_store
 from services.ai import generate_response, generate_response_stream
 from services.graph import GraphClient
+from services.prompts import detect_role
+from services.sanitization import PromptSanitizer
+from services.sanitization import (
+    sanitize_calendar_content,
+    sanitize_email_content,
+    sanitize_note_content,
+    sanitize_task_content,
+)
+from services.search import execute_searches
 from services.vectors import get_collection_stats, ingest_document, search_documents
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+settings = get_settings()
 
 
 def _parse_actions(response_text: str) -> tuple[str, list[dict]]:
@@ -35,6 +45,34 @@ def _parse_actions(response_text: str) -> tuple[str, list[dict]]:
     cleaned_response = cleaned_response.strip()
 
     return cleaned_response, actions
+
+
+def _parse_searches(response_text: str) -> tuple[str, list[str]]:
+    """Parse SEARCH blocks from AI response and return cleaned response + queries."""
+    search_pattern = r'```SEARCH\s*\n?(.*?)\n?```'
+    queries = []
+
+    matches = re.findall(search_pattern, response_text, re.DOTALL)
+    for match in matches:
+        try:
+            search_data = json.loads(match.strip())
+            query = search_data.get("query", "")
+            if query:
+                # Sanitize the search query
+                sanitized_query = PromptSanitizer.sanitize(query, max_length=200, filter_injections=False)
+                queries.append(sanitized_query)
+        except json.JSONDecodeError:
+            # Maybe it's just a plain query string
+            query = match.strip()
+            if query:
+                sanitized_query = PromptSanitizer.sanitize(query, max_length=200, filter_injections=False)
+                queries.append(sanitized_query)
+
+    # Remove SEARCH blocks from response for cleaner display
+    cleaned_response = re.sub(search_pattern, '', response_text, flags=re.DOTALL)
+    cleaned_response = cleaned_response.strip()
+
+    return cleaned_response, queries
 
 
 def _create_action_from_data(action_data: dict) -> dict | None:
@@ -90,7 +128,10 @@ async def _get_tasks_context(token: str) -> str:
             if tasks:
                 tasks_text.append(f"\n## {list_name}")
                 for task in tasks[:10]:  # Limit to 10 tasks per list
-                    title = task.get("title", "Untitled")
+                    title, _ = sanitize_task_content(
+                        task.get("title", "Untitled"),
+                        task.get("body", {}).get("content"),
+                    )
                     status = task.get("status", "notStarted")
                     importance = task.get("importance", "normal")
                     due = task.get("dueDateTime", {}).get("dateTime", "")
@@ -128,10 +169,12 @@ async def _get_calendar_context(token: str) -> str:
         current_date = None
 
         for event in events[:15]:  # Limit to 15 events
-            subject = event.get("subject", "Untitled")
+            subject, location, organizer = sanitize_calendar_content(
+                event.get("subject", "Untitled"),
+                event.get("location", {}).get("displayName"),
+                event.get("organizer", {}).get("emailAddress", {}).get("name"),
+            )
             start_info = event.get("start", {})
-            location = event.get("location", {}).get("displayName", "")
-            organizer = event.get("organizer", {}).get("emailAddress", {}).get("name", "")
 
             start_dt = start_info.get("dateTime", "")[:16]
             event_date = start_dt[:10]
@@ -167,11 +210,15 @@ async def _get_email_context(token: str) -> str:
         email_text = []
         for msg in messages[:10]:
             from_info = msg.get("from", {}).get("emailAddress", {})
-            subject = msg.get("subject", "(No subject)")
-            sender = from_info.get("name", from_info.get("address", "Unknown"))
+            raw_sender = from_info.get("name", from_info.get("address", "Unknown"))
+            raw_subject = msg.get("subject", "(No subject)")
+            raw_preview = msg.get("bodyPreview", "")
+
+            sender, subject, preview = sanitize_email_content(
+                raw_sender, raw_subject, raw_preview
+            )
             received = msg.get("receivedDateTime", "")[:10]
             is_read = "read" if msg.get("isRead") else "unread"
-            preview = msg.get("bodyPreview", "")[:100]
 
             email_text.append(f"- [{is_read}] {received} from {sender}: {subject}")
             if preview:
@@ -228,10 +275,12 @@ async def send_message(request: Request, chat_request: ChatRequest):
         if results:
             context_parts = []
             for result in results:
-                source = result["source"]
+                content, source = sanitize_note_content(
+                    result["content"], result["source"]
+                )
                 if source not in sources:
                     sources.append(source)
-                context_parts.append(f"[From: {source}]\n{result['content']}")
+                context_parts.append(f"[From: {source}]\n{content}")
             context = "\n\n---\n\n".join(context_parts)
 
     # Get tasks context
@@ -254,7 +303,10 @@ async def send_message(request: Request, chat_request: ChatRequest):
     if chat_request.history:
         history = [{"role": m.role, "content": m.content} for m in chat_request.history]
 
-    # Generate response
+    # Detect role from message
+    role = detect_role(chat_request.message)
+
+    # Generate initial response
     response = await generate_response(
         user_input=chat_request.message,
         context=context,
@@ -263,7 +315,34 @@ async def send_message(request: Request, chat_request: ChatRequest):
         email_context=email_context,
         chat_history=history,
         current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+        role=role,
     )
+
+    # Check for search requests if web search is enabled
+    search_results_context = ""
+    if settings.enable_web_search:
+        cleaned_after_search, search_queries = _parse_searches(response)
+
+        if search_queries:
+            # Execute searches
+            search_results_context = await execute_searches(search_queries)
+
+            if search_results_context:
+                # Re-generate response with search results
+                augmented_context = context
+                if search_results_context:
+                    augmented_context = f"{context}\n\n===== WEB SEARCH RESULTS =====\n{search_results_context}\n===== END WEB SEARCH RESULTS =====" if context else f"===== WEB SEARCH RESULTS =====\n{search_results_context}\n===== END WEB SEARCH RESULTS ====="
+
+                response = await generate_response(
+                    user_input=chat_request.message,
+                    context=augmented_context,
+                    tasks_context=tasks_context,
+                    calendar_context=calendar_context,
+                    email_context=email_context,
+                    chat_history=history,
+                    current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    role=role,
+                )
 
     # Parse and create any proposed actions
     cleaned_response, parsed_actions = _parse_actions(response)
@@ -275,7 +354,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
 
     return ChatResponse(
         response=cleaned_response if cleaned_response else response,
-        context_used=bool(context) or bool(tasks_context) or bool(calendar_context),
+        context_used=bool(context) or bool(tasks_context) or bool(calendar_context) or bool(search_results_context),
         sources=sources if sources else None,
         proposed_actions=proposed_actions if proposed_actions else None,
     )
@@ -300,10 +379,12 @@ async def stream_message(request: Request, chat_request: ChatRequest):
         if results:
             context_parts = []
             for result in results:
-                source = result["source"]
+                content, source = sanitize_note_content(
+                    result["content"], result["source"]
+                )
                 if source not in sources:
                     sources.append(source)
-                context_parts.append(f"[From: {source}]\n{result['content']}")
+                context_parts.append(f"[From: {source}]\n{content}")
             context = "\n\n---\n\n".join(context_parts)
 
     # Get tasks context
@@ -326,6 +407,9 @@ async def stream_message(request: Request, chat_request: ChatRequest):
     if chat_request.history:
         history = [{"role": m.role, "content": m.content} for m in chat_request.history]
 
+    # Detect role from message
+    role = detect_role(chat_request.message)
+
     async def generate():
         """Generate streaming response."""
         # First, send metadata
@@ -340,6 +424,7 @@ async def stream_message(request: Request, chat_request: ChatRequest):
             email_context=email_context,
             chat_history=history,
             current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+            role=role,
         ):
             yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
 

@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     github_token: str = ""
     github_username: str = ""  # Optional, for filtering
 
+    # Web Search
+    enable_web_search: bool = True  # Enable AI to search the web
+
     # Frontend
     frontend_url: str = "http://localhost:5173"
 

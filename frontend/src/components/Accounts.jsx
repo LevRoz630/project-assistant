@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import './Accounts.css'
-
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config'
 
 function Accounts({ accounts, onRefresh }) {
   const [loading, setLoading] = useState(false)

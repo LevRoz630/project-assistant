@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import './Chat.css'
-
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config'
 
 function Chat() {
   const [messages, setMessages] = useState([])

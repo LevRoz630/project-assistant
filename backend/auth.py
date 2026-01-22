@@ -226,7 +226,7 @@ async def auth_callback(
         key="session_id",
         value=session_id,
         httponly=True,
-        secure=False,  # Set to True in production with HTTPS
+        secure=not settings.debug,  # Secure in production (HTTPS)
         samesite="lax",
         max_age=86400 * 7,  # 7 days
     )

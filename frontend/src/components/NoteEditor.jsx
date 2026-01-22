@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import './NoteEditor.css'
-
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config'
 
 function NoteEditor() {
   const { folder, filename } = useParams()

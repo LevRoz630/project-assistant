@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import './Calendar.css'
-
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config'
 
 function Calendar() {
   const [view, setView] = useState('today') // 'today' or 'week'

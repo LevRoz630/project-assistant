@@ -1,0 +1,25 @@
+app = "personal-ai-assistant"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile.fly"
+
+[env]
+  DEBUG = "false"
+  CHROMA_PERSIST_DIRECTORY = "/app/data/chroma"
+  FRONTEND_URL = "https://personal-ai-assistant.fly.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[mounts]
+  source = "chromadb_data"
+  destination = "/app/data"

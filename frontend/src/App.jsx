@@ -8,8 +8,7 @@ import Calendar from './components/Calendar'
 import Email from './components/Email'
 import Actions from './components/Actions'
 import Accounts from './components/Accounts'
-
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from './config'
 
 function App() {
   const [user, setUser] = useState(null)

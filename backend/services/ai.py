@@ -7,6 +7,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
+from services.prompts import AIRole, get_role_prompt
 
 settings = get_settings()
 
@@ -31,51 +32,11 @@ def get_llm(provider: str | None = None, model: str | None = None):
         raise ValueError(f"Unknown provider: {provider}")
 
 
-SYSTEM_PROMPT = """You are a helpful personal AI assistant with access to the user's Microsoft 365 data.
-
-CRITICAL RULES:
-- ONLY use information explicitly provided in the context below
-- NEVER fabricate, invent, or hallucinate data (tasks, emails, events, notes)
-- If no data is provided for a category, say "I don't have access to that data" or "No data available"
-- If context is empty or says "No relevant notes found", do NOT make up example content
-
-ACTIONS - You can propose actions for the user to approve:
-When the user asks you to create, add, or schedule something, output an ACTION block:
-
-For calendar events:
-```ACTION
-{{"type": "create_event", "subject": "Event title", "start_datetime": "YYYY-MM-DDTHH:MM:SS", "end_datetime": "YYYY-MM-DDTHH:MM:SS", "body": "optional description"}}
-```
-
-For tasks:
-```ACTION
-{{"type": "create_task", "title": "Task title", "body": "optional details", "due_date": "YYYY-MM-DDTHH:MM:SS"}}
-```
-
-For notes:
-```ACTION
-{{"type": "create_note", "folder": "Diary|Projects|Study|Inbox", "filename": "note-name.md", "content": "Note content in markdown"}}
-```
-
-Always include a brief explanation before or after the ACTION block. The user will see the proposed action and can approve or reject it.
-
-Current date and time: {current_date}
-
-{context}
-
-{tasks_context}
-
-{calendar_context}
-
-{email_context}
-"""
-
-
-def create_chat_prompt():
-    """Create the chat prompt template."""
+def create_chat_prompt(system_prompt: str):
+    """Create the chat prompt template with the given system prompt."""
     return ChatPromptTemplate.from_messages(
         [
-            ("system", SYSTEM_PROMPT),
+            ("system", system_prompt),
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{input}"),
         ]
@@ -92,10 +53,31 @@ async def generate_response(
     current_date: str = "",
     provider: str | None = None,
     model: str | None = None,
+    role: AIRole | None = None,
 ) -> str:
-    """Generate a response from the AI."""
+    """Generate a response from the AI.
+
+    Args:
+        user_input: The user's message
+        context: Notes/RAG context
+        tasks_context: Tasks context
+        calendar_context: Calendar context
+        email_context: Email context
+        chat_history: Previous conversation messages
+        current_date: Current date string
+        provider: LLM provider (anthropic/openai)
+        model: Model name
+        role: AI role for specialized prompts (auto-detected if None)
+
+    Returns:
+        The AI response string
+    """
     llm = get_llm(provider, model)
-    prompt = create_chat_prompt()
+
+    # Get role-specific prompt
+    effective_role = role or AIRole.GENERAL
+    system_prompt = get_role_prompt(effective_role)
+    prompt = create_chat_prompt(system_prompt)
 
     chain = prompt | llm
 
@@ -133,10 +115,31 @@ async def generate_response_stream(
     current_date: str = "",
     provider: str | None = None,
     model: str | None = None,
+    role: AIRole | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Generate a streaming response from the AI."""
+    """Generate a streaming response from the AI.
+
+    Args:
+        user_input: The user's message
+        context: Notes/RAG context
+        tasks_context: Tasks context
+        calendar_context: Calendar context
+        email_context: Email context
+        chat_history: Previous conversation messages
+        current_date: Current date string
+        provider: LLM provider (anthropic/openai)
+        model: Model name
+        role: AI role for specialized prompts (auto-detected if None)
+
+    Yields:
+        Chunks of the AI response
+    """
     llm = get_llm(provider, model)
-    prompt = create_chat_prompt()
+
+    # Get role-specific prompt
+    effective_role = role or AIRole.GENERAL
+    system_prompt = get_role_prompt(effective_role)
+    prompt = create_chat_prompt(system_prompt)
 
     chain = prompt | llm
 
