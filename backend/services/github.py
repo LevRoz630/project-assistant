@@ -33,9 +33,15 @@ def _format_user(user) -> dict | None:
     """Format a GitHub user."""
     if not user:
         return None
+    # Only use attributes already loaded - accessing .name triggers extra API calls
+    # that can fail with 404 for bot accounts or deleted users
+    try:
+        name = user._rawData.get("name") or user.login if hasattr(user, "_rawData") else user.login
+    except Exception:
+        name = user.login
     return {
         "login": user.login,
-        "name": user.name,
+        "name": name,
         "avatar_url": user.avatar_url,
     }
 
@@ -154,11 +160,15 @@ def get_notifications(
     """Get notifications."""
     client = get_client()
 
-    notifications = client.get_user().get_notifications(
-        all=all_notifications,
-        participating=participating,
-        since=since,
-    )
+    # Build kwargs - PyGithub doesn't like since=None
+    kwargs = {
+        "all": all_notifications,
+        "participating": participating,
+    }
+    if since is not None:
+        kwargs["since"] = since
+
+    notifications = client.get_user().get_notifications(**kwargs)
 
     return [_format_notification(n) for n in notifications]
 
