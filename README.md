@@ -7,11 +7,15 @@ Goal of hte projects is to minimize the time spent on scrolling and useless info
 
 - **AI Chat** - Conversational AI with RAG from notes, tasks, calendar, and email context
 - **Notes** - Markdown notes synced with OneDrive (Diary, Projects, Study, Inbox)
+- **OneNote** - Full OneNote integration for mobile note-taking
 - **Tasks** - Microsoft To Do integration with full CRUD
 - **Calendar** - Outlook calendar view and event creation
 - **Email** - Email inbox viewing and search
+- **GitHub** - Full GitHub integration (issues, PRs, repos, search, write operations)
+- **Telegram** - Read Telegram messages and chats (requires user API credentials)
 - **AI Actions** - AI can propose tasks, events, and notes for user approval
 - **Auto-Sync** - Background syncing of notes to vector store for RAG
+- **PWA** - Installable as a Progressive Web App on mobile
 
 ## Architecture
 
@@ -106,15 +110,20 @@ project-assistant/
 │   ├── routers/
 │   │   ├── chat.py          # AI chat endpoints
 │   │   ├── notes.py         # Notes CRUD
+│   │   ├── onenote.py       # OneNote integration
 │   │   ├── tasks.py         # To Do integration
 │   │   ├── calendar.py      # Calendar endpoints
 │   │   ├── email.py         # Email endpoints
+│   │   ├── github.py        # GitHub integration
+│   │   ├── telegram.py      # Telegram integration
 │   │   ├── sync.py          # Auto-sync endpoints
 │   │   └── actions.py       # AI actions/approval endpoints
 │   └── services/
 │       ├── graph.py         # Microsoft Graph client
 │       ├── ai.py            # LangChain setup
 │       ├── vectors.py       # ChromaDB operations
+│       ├── github.py        # GitHub API client
+│       ├── telegram.py      # Telegram API client
 │       ├── sync.py          # OneDrive sync service
 │       └── actions.py       # Action management service
 ├── frontend/
@@ -130,6 +139,9 @@ project-assistant/
 │   │       ├── Actions.jsx
 │   │       └── Accounts.jsx
 │   └── package.json
+├── tests/
+│   ├── routers/             # Unit tests (mocked)
+│   └── integration/         # Live API tests
 ├── requirements.txt
 ├── docker-compose.yml
 └── .env.example
@@ -204,6 +216,57 @@ OneDrive/
 - `POST /actions/{id}/approve` - Approve and execute action
 - `POST /actions/{id}/reject` - Reject action
 
+### GitHub
+- `GET /github/status` - Connection status
+- `GET /github/repos` - List your repositories
+- `GET /github/repos/{owner}/{repo}/branches` - List branches
+- `GET /github/repos/{owner}/{repo}/labels` - List labels
+- `GET /github/repos/{owner}/{repo}/collaborators` - List collaborators
+- `GET /github/issues/assigned` - Issues assigned to you
+- `GET /github/issues/created` - Issues you created
+- `GET /github/issues/mentioned` - Issues mentioning you
+- `GET /github/repos/{owner}/{repo}/issues/{num}` - Get specific issue
+- `POST /github/repos/{owner}/{repo}/issues` - Create issue
+- `PATCH /github/repos/{owner}/{repo}/issues/{num}` - Update issue
+- `POST /github/repos/{owner}/{repo}/issues/{num}/close` - Close issue
+- `POST /github/repos/{owner}/{repo}/issues/{num}/reopen` - Reopen issue
+- `GET /github/repos/{owner}/{repo}/issues/{num}/comments` - Get comments
+- `POST /github/repos/{owner}/{repo}/issues/{num}/comments` - Add comment
+- `POST /github/repos/{owner}/{repo}/issues/{num}/labels` - Add labels
+- `DELETE /github/repos/{owner}/{repo}/issues/{num}/labels` - Remove labels
+- `POST /github/repos/{owner}/{repo}/issues/{num}/assignees` - Assign users
+- `GET /github/prs/review-requests` - PRs awaiting your review
+- `GET /github/prs/mine` - Your PRs
+- `GET /github/repos/{owner}/{repo}/pulls/{num}` - Get specific PR
+- `POST /github/repos/{owner}/{repo}/pulls` - Create PR
+- `PUT /github/repos/{owner}/{repo}/pulls/{num}/merge` - Merge PR
+- `POST /github/repos/{owner}/{repo}/pulls/{num}/requested_reviewers` - Request reviewers
+- `POST /github/repos/{owner}/{repo}/pulls/{num}/reviews` - Add review
+- `GET /github/search/issues` - Search issues/PRs
+- `GET /github/search/repos` - Search repositories
+
+### Telegram
+- `GET /telegram/status` - Connection status
+- `POST /telegram/auth/start` - Start authentication (sends code to phone)
+- `POST /telegram/auth/complete` - Complete authentication with code
+- `GET /telegram/dialogs` - List chats/dialogs
+- `GET /telegram/unread` - Get unread messages
+- `GET /telegram/messages/{chat_id}` - Get messages from chat
+- `POST /telegram/messages/{chat_id}/read` - Mark as read
+- `GET /telegram/summary` - Updates summary
+
+### OneNote
+- `GET /onenote/notebooks` - List notebooks
+- `POST /onenote/notebooks` - Create notebook
+- `GET /onenote/notebooks/{id}/sections` - List sections
+- `POST /onenote/notebooks/{id}/sections` - Create section
+- `GET /onenote/sections/{id}/pages` - List pages
+- `GET /onenote/pages/{id}` - Get page content (as markdown)
+- `POST /onenote/sections/{id}/pages` - Create page
+- `PATCH /onenote/pages/{id}` - Update page
+- `DELETE /onenote/pages/{id}` - Delete page
+- `GET /onenote/diary/today` - Get/create today's diary page
+
 ## Environment Variables
 
 | Variable | Description |
@@ -215,6 +278,33 @@ OneDrive/
 | `OPENAI_API_KEY` | OpenAI API key (for embeddings + optional LLM) |
 | `DEFAULT_LLM_PROVIDER` | `anthropic` or `openai` |
 | `ONEDRIVE_BASE_FOLDER` | Base folder in OneDrive (default: `PersonalAI`) |
+| `GITHUB_TOKEN` | GitHub Personal Access Token (fine-grained recommended) |
+| `GITHUB_USERNAME` | Your GitHub username |
+| `TELEGRAM_API_ID` | Telegram API ID from https://my.telegram.org |
+| `TELEGRAM_API_HASH` | Telegram API hash |
+| `TELEGRAM_PHONE` | Your phone number with country code |
+
+## GitHub Setup
+
+1. Go to https://github.com/settings/tokens?type=beta (fine-grained tokens)
+2. Click **Generate new token**
+3. Set expiration and select repositories (or all)
+4. Under **Repository permissions**, enable:
+   - **Issues**: Read and write
+   - **Pull requests**: Read and write
+   - **Contents**: Read-only
+   - **Metadata**: Read-only
+5. Copy the token to `GITHUB_TOKEN` in `.env`
+
+## Telegram Setup
+
+1. Go to https://my.telegram.org and log in
+2. Click **API development tools**
+3. Create a new application
+4. Copy **App api_id** to `TELEGRAM_API_ID`
+5. Copy **App api_hash** to `TELEGRAM_API_HASH`
+6. Set `TELEGRAM_PHONE` to your phone number (e.g., `+1234567890`)
+7. On first use, call `POST /telegram/auth/start` then `POST /telegram/auth/complete` with the code sent to your phone
 
 ## Development
 

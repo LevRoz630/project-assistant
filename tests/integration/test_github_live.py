@@ -56,30 +56,6 @@ class TestGitHubConnection:
         print(f"Public repos: {user['public_repos']}")
 
 
-class TestGitHubNotifications:
-    """Test GitHub notifications.
-
-    Note: Requires 'notifications' scope on the token.
-    """
-
-    def test_get_notifications(self, github_service):
-        """Test getting notifications."""
-        from github.GithubException import GithubException
-
-        try:
-            notifications = github_service.get_notifications(all_notifications=False)
-        except GithubException as e:
-            if "403" in str(e):
-                pytest.skip("Token lacks 'notifications' scope")
-            raise
-
-        assert isinstance(notifications, list)
-        print(f"\nUnread notifications: {len(notifications)}")
-
-        for notif in notifications[:5]:
-            print(f"  - [{notif['subject']['type']}] {notif['subject']['title']}")
-
-
 class TestGitHubIssues:
     """Test GitHub issues."""
 
@@ -210,38 +186,6 @@ class TestGitHubSearch:
 
         for repo in results[:5]:
             print(f"  - {repo['full_name']} ({repo['stars']} stars)")
-
-
-class TestGitHubSummary:
-    """Test GitHub summary.
-
-    Note: Requires 'notifications' scope for full summary.
-    """
-
-    def test_get_updates_summary(self, github_service):
-        """Test getting updates summary."""
-        from github.GithubException import GithubException
-
-        try:
-            summary = github_service.get_updates_summary(hours=24)
-        except GithubException as e:
-            if "403" in str(e):
-                pytest.skip("Token lacks 'notifications' scope - required for summary")
-            raise
-
-        assert "unread_notifications" in summary
-        assert "review_requests" in summary
-        assert "assigned_issues" in summary
-
-        print(f"\n=== GitHub Summary (last 24h) ===")
-        print(f"Unread notifications: {summary['unread_notifications']}")
-        print(f"Review requests: {summary['review_requests']}")
-        print(f"Assigned issues: {summary['assigned_issues']}")
-
-        if summary['notifications_by_type']:
-            print("\nNotifications by type:")
-            for notif_type, items in summary['notifications_by_type'].items():
-                print(f"  - {notif_type}: {len(items)}")
 
 
 class TestGitHubWriteOperations:
