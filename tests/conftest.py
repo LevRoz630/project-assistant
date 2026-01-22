@@ -22,6 +22,8 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "test-anthropic-key")
 os.environ.setdefault("OPENAI_API_KEY", "test-openai-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("DEBUG", "true")
+os.environ.setdefault("JOPLIN_ENABLED", "false")
+os.environ.setdefault("JOPLIN_TOKEN", "test-joplin-token")
 
 
 @pytest.fixture(scope="session")

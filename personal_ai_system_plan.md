@@ -50,7 +50,7 @@ React Frontend → FastAPI Backend → Microsoft Graph API
 ### M8: Notifications & Reminders
 **Goal:** Proactive assistant that surfaces relevant info.
 
-- [ ] Daily digest email/notification
+- [ ] Daily digest email/notification (intergation with arxiv summaries)
 - [ ] Task due date reminders
 - [ ] Calendar event prep summaries
 

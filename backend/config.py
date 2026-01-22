@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     # ChromaDB
     chroma_persist_directory: str = "./data/chroma"
 
+    # Joplin Integration
+    joplin_enabled: bool = False
+    joplin_url: str = "http://localhost:41184"
+    joplin_token: str = ""
+
     # Frontend
     frontend_url: str = "http://localhost:5173"
 
