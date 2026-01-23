@@ -10,7 +10,7 @@ from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
 import httpx
-from config import get_settings
+from ..config import get_settings
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI

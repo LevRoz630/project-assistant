@@ -4,12 +4,12 @@ import re
 from datetime import datetime
 from html import escape
 
-from auth import get_access_token_for_service
-from config import get_settings
+from ..auth import get_access_token_for_service
+from ..config import get_settings
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from services.graph import GraphClient
-from services.vectors import delete_document, ingest_document
+from ..services.graph import GraphClient
+from ..services.vectors import delete_document, ingest_document
 
 router = APIRouter(prefix="/onenote", tags=["onenote"])
 settings = get_settings()

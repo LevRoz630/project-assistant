@@ -3,8 +3,8 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
-from config import get_settings
-from services.arxiv import (
+from ..config import get_settings
+from ..services.arxiv import (
     generate_digest,
     get_arxiv_scheduler,
     get_digest,

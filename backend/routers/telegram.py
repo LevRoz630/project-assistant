@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from services import telegram
+from ..services import telegram
 
 router = APIRouter(prefix="/telegram", tags=["telegram"])
 

@@ -4,26 +4,26 @@ import json
 import re
 from datetime import datetime, timedelta
 
-from auth import get_access_token
-from config import get_settings
+from ..auth import get_access_token
+from ..config import get_settings
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
-from services.actions import ActionType, get_action_store
-from services.ai import generate_response, generate_response_stream
-from services.graph import GraphClient
-from services.prompts import detect_role
-from services.sanitization import PromptSanitizer
-from services.sanitization import (
+from ..services.actions import ActionType, get_action_store
+from ..services.ai import generate_response, generate_response_stream
+from ..services.graph import GraphClient
+from ..services.prompts import detect_role
+from ..services.sanitization import PromptSanitizer
+from ..services.sanitization import (
     sanitize_calendar_content,
     sanitize_email_content,
     sanitize_note_content,
     sanitize_task_content,
 )
-from services.search import execute_searches
-from services.security import SecurityEventType, log_security_event
-from services.vectors import get_collection_stats, ingest_document, search_documents
-from services.web_fetch import fetch_urls
+from ..services.search import execute_searches
+from ..services.security import SecurityEventType, log_security_event
+from ..services.vectors import get_collection_stats, ingest_document, search_documents
+from ..services.web_fetch import fetch_urls
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 settings = get_settings()

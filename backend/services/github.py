@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 
-from config import get_settings
+from ..config import get_settings
 from github import Github
 from github.GithubException import GithubException
 

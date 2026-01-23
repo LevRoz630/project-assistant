@@ -3,18 +3,18 @@
 import json
 from datetime import datetime
 
-from auth import get_access_token
-from config import get_settings
+from ..auth import get_access_token
+from ..config import get_settings
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from services.actions import (
+from ..services.actions import (
     ActionStatus,
     ActionType,
     ProposedAction,
     get_action_store,
 )
-from services.graph import GraphClient
-from services.vectors import ingest_document
+from ..services.graph import GraphClient
+from ..services.vectors import ingest_document
 
 router = APIRouter(prefix="/actions", tags=["actions"])
 settings = get_settings()

@@ -3,7 +3,7 @@
 import secrets
 
 import msal
-from config import get_settings
+from .config import get_settings
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 

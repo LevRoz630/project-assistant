@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import Any
 
-from config import get_settings
+from ..config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

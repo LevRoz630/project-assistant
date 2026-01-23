@@ -1,9 +1,9 @@
 """Email endpoints for reading and managing emails."""
 
-from auth import get_access_token
+from ..auth import get_access_token
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from services.graph import GraphClient
+from ..services.graph import GraphClient
 
 router = APIRouter(prefix="/email", tags=["email"])
 

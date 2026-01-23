@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
-from config import get_settings
+from ..config import get_settings
 from services.sanitization import PromptSanitizer
 
 settings = get_settings()

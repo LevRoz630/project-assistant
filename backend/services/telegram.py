@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from config import get_settings
+from ..config import get_settings
 from telethon import TelegramClient
 from telethon.tl.types import (
     Channel,

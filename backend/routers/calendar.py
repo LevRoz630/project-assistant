@@ -2,10 +2,10 @@
 
 from datetime import datetime, timedelta
 
-from auth import get_access_token_for_service
+from ..auth import get_access_token_for_service
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from services.graph import GraphClient
+from ..services.graph import GraphClient
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
 

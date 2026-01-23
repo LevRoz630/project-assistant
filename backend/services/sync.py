@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from config import get_settings
+from ..config import get_settings
 
 from services.graph import GraphClient
 from services.vectors import delete_document, ingest_document

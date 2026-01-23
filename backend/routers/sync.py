@@ -1,9 +1,9 @@
 """Sync endpoints for auto-indexing."""
 
-from auth import get_access_token
+from ..auth import get_access_token
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel
-from services.sync import (
+from ..services.sync import (
     get_scheduler,
     get_sync_state,
     sync_notes_to_vectors,

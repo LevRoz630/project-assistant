@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Request
-from services import github
+from ..services import github
 
 router = APIRouter(prefix="/github", tags=["github"])
 
