@@ -1,9 +1,7 @@
 app = "project-assistant"
 primary_region = "lhr"
 
-[build]
-  dockerfile = "Dockerfile.fly"
-  ignorefile = ".dockerignore"
+# Using nixpacks - see nixpacks.toml for config
 
 [env]
   DEBUG = "false"
