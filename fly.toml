@@ -1,4 +1,4 @@
-app = "personal-ai-assistant"
+app = "project-assistant"
 primary_region = "lhr"
 
 [build]
@@ -7,7 +7,7 @@ primary_region = "lhr"
 [env]
   DEBUG = "false"
   CHROMA_PERSIST_DIRECTORY = "/app/data/chroma"
-  FRONTEND_URL = "https://personal-ai-assistant.fly.dev"
+  FRONTEND_URL = "https://project-assistant.fly.dev"
 
 [http_service]
   internal_port = 8080
