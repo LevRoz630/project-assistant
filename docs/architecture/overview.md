@@ -1,35 +1,43 @@
 # Architecture Overview
 
-The Personal AI Assistant is built with a modern, modular architecture.
+The Personal AI Assistant is built with a modern, modular architecture designed for extensibility and security.
 
 ## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Frontend (React)                       │
-│                   http://localhost:5173                     │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ HTTP/WebSocket
-┌─────────────────────────▼───────────────────────────────────┐
-│                    FastAPI Backend                          │
-│                   http://localhost:8000                     │
-├─────────────────────────────────────────────────────────────┤
-│  Routers          │  Services            │  Integrations    │
-│  ├─ auth.py       │  ├─ ai.py           │  ├─ Microsoft    │
-│  ├─ chat.py       │  ├─ prompts.py      │  │   Graph API   │
-│  ├─ notes.py      │  ├─ sanitization.py │  ├─ GitHub API   │
-│  ├─ tasks.py      │  ├─ search.py       │  ├─ Telegram     │
-│  ├─ calendar.py   │  ├─ web_fetch.py    │  └─ DuckDuckGo   │
-│  ├─ email.py      │  ├─ vectors.py      │                   │
-│  ├─ github.py     │  ├─ security.py     │                   │
-│  └─ telegram.py   │  └─ prompt_config.py│                   │
-└─────────────────────────────────────────────────────────────┘
-          │                    │                    │
-          ▼                    ▼                    ▼
-┌──────────────┐    ┌──────────────┐    ┌──────────────────┐
-│   ChromaDB   │    │   LangChain  │    │  External APIs   │
-│ Vector Store │    │   LLM Layer  │    │                  │
-└──────────────┘    └──────────────┘    └──────────────────┘
+                          ┌─────────────────────────────────────────┐
+                          │            Frontend (React)             │
+                          │         http://localhost:5173           │
+                          └───────────────────┬─────────────────────┘
+                                              │ HTTP / SSE
+┌─────────────────────────────────────────────▼─────────────────────────────────────────────┐
+│                                    FastAPI Backend                                         │
+│                                 http://localhost:8000                                      │
+├───────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                           │
+│  ┌─────────────┐    ┌─────────────────┐    ┌─────────────────────────────────────────┐   │
+│  │   Routers   │    │    Services     │    │             Integrations                │   │
+│  ├─────────────┤    ├─────────────────┤    ├─────────────────────────────────────────┤   │
+│  │ auth.py     │    │ ai.py           │    │ Microsoft Graph API                     │   │
+│  │ chat.py     │    │ prompts.py      │    │   - OneDrive, Outlook, To Do, OneNote   │   │
+│  │ notes.py    │    │ sanitization.py │    │                                         │   │
+│  │ tasks.py    │    │ search.py       │    │ LLM Providers                           │   │
+│  │ calendar.py │    │ web_fetch.py    │    │   - Anthropic (Claude)                  │   │
+│  │ email.py    │    │ vectors.py      │    │   - OpenAI (GPT)                        │   │
+│  │ github.py   │    │ security.py     │    │   - Google (Gemini)                     │   │
+│  │ telegram.py │    │ github.py       │    │                                         │   │
+│  │ arxiv.py    │    │ telegram.py     │    │ External APIs                           │   │
+│  │ actions.py  │    │ arxiv.py        │    │   - GitHub, Telegram, ArXiv, DuckDuckGo │   │
+│  │ sync.py     │    │ actions.py      │    │                                         │   │
+│  └─────────────┘    └─────────────────┘    └─────────────────────────────────────────┘   │
+│                                                                                           │
+└───────────────────────────────────────────────────────────────────────────────────────────┘
+            │                    │                    │
+            ▼                    ▼                    ▼
+  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+  │     ChromaDB     │  │    LangChain     │  │   File Storage   │
+  │   Vector Store   │  │    LLM Layer     │  │   ./data/        │
+  └──────────────────┘  └──────────────────┘  └──────────────────┘
 ```
 
 ## Directory Structure
@@ -38,83 +46,247 @@ The Personal AI Assistant is built with a modern, modular architecture.
 project-assistant/
 ├── backend/
 │   ├── main.py              # FastAPI app entry point
-│   ├── config.py            # Environment configuration
-│   ├── auth.py              # OAuth authentication
-│   ├── prompt_config.yaml   # Admin prompt customization
+│   ├── config.py            # Environment configuration (pydantic-settings)
+│   ├── auth.py              # Microsoft OAuth authentication
+│   ├── prompt_config.yaml   # Admin-configurable prompts
 │   ├── routers/             # API endpoint handlers
-│   │   ├── chat.py
-│   │   ├── notes.py
-│   │   ├── tasks.py
-│   │   └── ...
+│   │   ├── chat.py          # AI chat with streaming
+│   │   ├── notes.py         # OneDrive notes CRUD
+│   │   ├── tasks.py         # Microsoft To Do
+│   │   ├── calendar.py      # Outlook calendar
+│   │   ├── email.py         # Outlook email
+│   │   ├── github.py        # GitHub issues/PRs
+│   │   ├── telegram.py      # Telegram messages
+│   │   ├── arxiv.py         # ArXiv paper digest
+│   │   ├── onenote.py       # OneNote integration
+│   │   ├── actions.py       # AI action approval
+│   │   └── sync.py          # Background sync
 │   └── services/            # Business logic
 │       ├── ai.py            # LLM orchestration
-│       ├── prompts.py       # Role-based prompts
-│       ├── sanitization.py  # Security utilities
-│       ├── vectors.py       # ChromaDB integration
-│       └── ...
+│       ├── prompts.py       # Role-based system prompts
+│       ├── sanitization.py  # Prompt injection defense
+│       ├── search.py        # DuckDuckGo web search
+│       ├── web_fetch.py     # URL content fetching
+│       ├── vectors.py       # ChromaDB operations
+│       ├── security.py      # Rate limiting, logging
+│       ├── graph.py         # Microsoft Graph client
+│       ├── github.py        # GitHub API client
+│       ├── telegram.py      # Telegram API client
+│       ├── arxiv.py         # ArXiv fetch and ranking
+│       └── actions.py       # Action management
 ├── frontend/
 │   └── src/
-│       ├── components/
-│       └── ...
-├── docs/                    # Documentation (this site)
-├── tests/                   # Test suite
-└── data/                    # Persistent data
-    ├── chroma/              # Vector store
-    └── telegram_session/    # Telegram auth
+│       ├── App.jsx
+│       └── components/      # React UI components
+├── tests/
+│   ├── routers/             # Router unit tests
+│   ├── services/            # Service unit tests
+│   └── integration/         # Live API tests
+├── docs/                    # MkDocs documentation
+├── data/                    # Persistent data (created at runtime)
+│   ├── chroma/              # Vector store database
+│   ├── arxiv/digests/       # ArXiv digest JSON files
+│   └── telegram_session/    # Telegram auth session
+├── .env.example             # Environment template
+├── requirements.txt         # Python dependencies
+├── docker-compose.yml       # Development containers
+├── Dockerfile.fly           # Production container
+├── Dockerfile.dev           # Development container
+├── fly.toml                 # Fly.io deployment config
+├── nginx.conf               # Production nginx config
+└── Makefile                 # Development commands
 ```
 
 ## Key Components
 
-### LLM Integration
+### Multi-Provider LLM Integration
 
-Uses LangChain for LLM abstraction:
+Uses LangChain for unified LLM access:
 
-- **Providers**: Anthropic, OpenAI, Google Gemini
-- **Chains**: Prompt → LLM → Response
-- **Streaming**: SSE for real-time responses
+- **Providers**: Anthropic Claude, OpenAI GPT, Google Gemini
+- **Selection**: `DEFAULT_LLM_PROVIDER` environment variable
+- **Streaming**: Server-Sent Events (SSE) for real-time responses
+- **Models**:
+  - Anthropic: claude-sonnet-4, claude-3-haiku, claude-3-opus
+  - OpenAI: gpt-4, gpt-4-turbo, gpt-3.5-turbo
+  - Google: gemini-1.5-pro, gemini-1.5-flash
 
 ### Vector Store (RAG)
 
-ChromaDB for semantic search:
+ChromaDB for semantic search and context retrieval:
 
 - **Embeddings**: OpenAI text-embedding-3-small
 - **Chunking**: 1000 tokens with 200 overlap
-- **Search**: Top-k similarity search
+- **Search**: Top-k similarity search (default k=5)
+- **Sources**: Notes, synced from OneDrive
+- **Persistence**: `./data/chroma/`
 
 ### Authentication
 
-Microsoft OAuth 2.0:
+Microsoft OAuth 2.0 via MSAL:
 
-- Multi-account support
-- Session-based authorization
-- Automatic token refresh
+- **Flow**: Authorization code with PKCE
+- **Scopes**: User.Read, Files.ReadWrite.All, Tasks.ReadWrite, etc.
+- **Sessions**: Cookie-based, httponly
+- **Multi-account**: Supports multiple Microsoft accounts
+- **Token refresh**: Automatic before expiration
 
 ### Role-Based Prompts
 
-Specialized prompts for different tasks:
+Context-aware system prompts:
 
-- Automatic role detection
-- Context injection
-- Admin customization via YAML
+- **Roles**: general, email, tasks, calendar, github
+- **Detection**: Automatic based on message content
+- **Context injection**: Relevant data added to prompt
+- **Customization**: `prompt_config.yaml` for admin changes
+
+### Security Layer
+
+Multiple defense mechanisms:
+
+- **Prompt injection detection**: Pattern matching + unicode normalization
+- **Input validation**: Length limits, content filtering
+- **Rate limiting**: In-memory (Redis recommended for production)
+- **Output sanitization**: Action parsing, content filtering
+- **URL validation**: Blocked domains for fetch
 
 ## Data Flow
 
 ### Chat Request Flow
 
-1. **Input** → User sends message
-2. **Validation** → Input validated and checked for injection
-3. **Role Detection** → Appropriate AI role selected
-4. **Context Gathering** → Notes, tasks, calendar, email fetched
-5. **Sanitization** → All context sanitized
-6. **LLM Generation** → Response generated with context
-7. **Post-Processing** → SEARCH/FETCH blocks processed
-8. **Action Parsing** → Proposed actions extracted
-9. **Response** → Cleaned response returned
+```
+1. User Message
+       │
+       ▼
+2. Input Validation
+   - Length check (max 10,000 chars)
+   - Prompt injection detection
+       │
+       ▼
+3. Role Detection
+   - Analyze message content
+   - Select appropriate role/prompt
+       │
+       ▼
+4. Context Gathering
+   - RAG: Search vector store
+   - Microsoft 365: Tasks, calendar, email
+   - History: Previous messages
+       │
+       ▼
+5. Content Sanitization
+   - Truncate to limits
+   - Remove injection patterns
+   - Normalize unicode
+       │
+       ▼
+6. LLM Generation
+   - Build system prompt
+   - Stream response via SSE
+       │
+       ▼
+7. Post-Processing
+   - Execute SEARCH blocks
+   - Execute FETCH blocks
+   - Re-generate if needed
+       │
+       ▼
+8. Action Parsing
+   - Extract TASK/EVENT/NOTE blocks
+   - Store as pending actions
+       │
+       ▼
+9. Response
+   - Clean markdown
+   - Include action IDs
+```
 
 ### Action Approval Flow
 
+```
 1. AI proposes action in response
+       │
+       ▼
 2. Action stored as pending
-3. User reviews and approves/rejects
-4. If approved, action executed against external service
-5. Status updated
+   - Type: task, event, note
+   - Payload: title, body, date, etc.
+       │
+       ▼
+3. User reviews in UI
+       │
+       ├──▶ Approve ──▶ Execute against service ──▶ Mark complete
+       │
+       └──▶ Reject ──▶ Mark rejected
+```
+
+### Web Search Flow
+
+```
+1. AI detects need for current info
+       │
+       ▼
+2. Outputs SEARCH block
+   ```SEARCH
+   query here
+   ```
+       │
+       ▼
+3. System intercepts, queries DuckDuckGo
+       │
+       ▼
+4. Results added to context
+       │
+       ▼
+5. AI re-generates with search results
+```
+
+## Deployment Architecture
+
+### Development (Docker Compose)
+
+```
+┌─────────────────────────────────────────┐
+│           docker-compose                │
+│  ┌─────────────────┐  ┌──────────────┐  │
+│  │    backend      │  │   frontend   │  │
+│  │   (uvicorn)     │  │    (vite)    │  │
+│  │   port 8000     │  │  port 5173   │  │
+│  └─────────────────┘  └──────────────┘  │
+└─────────────────────────────────────────┘
+```
+
+### Production (Fly.io)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Fly.io Machine                          │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                    nginx (:8080)                     │   │
+│  │  ┌──────────────┐  ┌──────────────────────────────┐  │   │
+│  │  │ Static files │  │  Proxy /api/ and /auth/      │  │   │
+│  │  │ /frontend/   │  │  to localhost:8000           │  │   │
+│  │  └──────────────┘  └──────────────────────────────┘  │   │
+│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              uvicorn backend (:8000)                │   │
+│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │         Persistent Volume (/app/data)               │   │
+│  │         - ChromaDB, ArXiv digests                   │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Technology Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | React, TypeScript, Vite |
+| Backend | FastAPI, Python 3.11+, Pydantic |
+| LLM | LangChain, Anthropic/OpenAI/Google SDKs |
+| Vector Store | ChromaDB |
+| Auth | MSAL (Microsoft), OAuth 2.0 |
+| HTTP Client | httpx, PyGithub, Telethon |
+| Web Scraping | BeautifulSoup, DuckDuckGo-Search |
+| Deployment | Docker, Fly.io, nginx |
+| Testing | pytest, Vitest |

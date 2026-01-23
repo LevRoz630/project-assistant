@@ -1,13 +1,17 @@
 # Development Setup
 
-This guide covers setting up the development environment.
+This guide covers setting up the development environment for contributing to the Personal AI Assistant.
 
 ## Prerequisites
 
-- Python 3.11+
-- Node.js 18+
-- Git
-- An IDE (VS Code recommended)
+- **Python 3.11+** - Backend runtime
+- **Node.js 18+** - Frontend tooling
+- **Git** - Version control
+- **Docker** (optional) - Container development
+
+Recommended:
+- **VS Code** - IDE with excellent Python/TypeScript support
+- **pre-commit** - Git hooks for code quality
 
 ## Clone Repository
 
@@ -23,15 +27,22 @@ cd project-assistant
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
+
+# Activate on Linux/Mac
+source venv/bin/activate
+
+# Activate on Windows
+venv\Scripts\activate
 ```
 
 ### Install Dependencies
 
 ```bash
+# Production dependencies
 pip install -r requirements.txt
-pip install -r requirements-dev.txt  # Development dependencies
+
+# Development dependencies (includes testing, linting)
+pip install -e ".[dev]"
 ```
 
 ### Configure Environment
@@ -46,6 +57,13 @@ cp .env.example .env
 ```bash
 uvicorn main:app --reload --port 8000
 ```
+
+The API will be at http://localhost:8000 with auto-reload on code changes.
+
+### API Documentation
+
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
 ## Frontend Setup
 
@@ -62,28 +80,102 @@ npm install
 npm run dev
 ```
 
+The app will be at http://localhost:5173 with hot module replacement.
+
+## Docker Development
+
+### Docker Compose
+
+Run everything with hot reload:
+
+```bash
+docker-compose up --build
+```
+
+### Development Container
+
+Use the full dev container with all tools:
+
+```bash
+docker build -f Dockerfile.dev -t project-assistant-dev .
+docker run -it -v $(pwd):/workspace project-assistant-dev
+```
+
+Includes: Claude Code CLI, flyctl, gh, Node.js 20, Python 3.11.
+
 ## IDE Configuration
 
 ### VS Code Extensions
 
-Recommended extensions:
-- Python
-- Pylance
-- ESLint
-- Prettier
-- Thunder Client (API testing)
+Recommended extensions (`.vscode/extensions.json`):
+
+- Python (ms-python.python)
+- Pylance (ms-python.vscode-pylance)
+- Black Formatter (ms-python.black-formatter)
+- Ruff (charliermarsh.ruff)
+- ESLint (dbaeumer.vscode-eslint)
+- Prettier (esbenp.prettier-vscode)
+- Thunder Client (rangav.vscode-thunder-client)
 
 ### VS Code Settings
 
-`.vscode/settings.json`:
+Create `.vscode/settings.json`:
+
 ```json
 {
   "python.defaultInterpreterPath": "./backend/venv/bin/python",
-  "python.formatting.provider": "black",
-  "editor.formatOnSave": true,
   "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter"
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
   }
+}
+```
+
+### VS Code Launch Configuration
+
+Create `.vscode/launch.json`:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "FastAPI Backend",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["main:app", "--reload", "--port", "8000"],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "Python: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}/backend"
+    },
+    {
+      "name": "Pytest",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["../tests", "-v"],
+      "cwd": "${workspaceFolder}/backend"
+    }
+  ]
 }
 ```
 
@@ -91,70 +183,198 @@ Recommended extensions:
 
 ### Python
 
-- Formatter: Black
-- Linter: Ruff
-- Type hints required
+- **Formatter**: Ruff (Black-compatible)
+- **Linter**: Ruff
+- **Type checker**: mypy
+- **Style**: PEP 8, type hints required
 
 ```bash
-# Format
-black backend/
+# Format code
+make format
+# or
+ruff format backend tests
 
 # Lint
-ruff check backend/
+make lint
+# or
+ruff check backend tests
+
+# Fix lint issues
+make lint-fix
+# or
+ruff check backend tests --fix
+
+# Type check
+make type-check
+# or
+cd backend && python -m mypy . --ignore-missing-imports
 ```
 
-### TypeScript
+### TypeScript/JavaScript
 
-- Formatter: Prettier
-- Linter: ESLint
+- **Formatter**: Prettier
+- **Linter**: ESLint
 
 ```bash
+cd frontend
+
 # Format
 npm run format
 
 # Lint
 npm run lint
+
+# Lint with fix
+npm run lint:fix
 ```
 
 ## Pre-commit Hooks
 
-Install pre-commit hooks:
+Install hooks to run checks before each commit:
 
 ```bash
 pip install pre-commit
 pre-commit install
+pre-commit install --hook-type commit-msg
 ```
 
-## Database
+Run on all files:
+
+```bash
+make pre-commit-run
+# or
+pre-commit run --all-files
+```
+
+## Make Commands
+
+The Makefile provides shortcuts for common tasks:
+
+```bash
+make help          # Show all commands
+
+# Setup
+make install       # Install production deps
+make install-dev   # Install dev deps
+
+# Testing
+make test          # Run tests
+make test-cov      # Run tests with coverage
+make test-watch    # Run tests in watch mode
+
+# Code Quality
+make lint          # Run linter
+make lint-fix      # Fix lint issues
+make format        # Format code
+make type-check    # Run type checker
+make check         # Run all checks
+
+# Development
+make backend       # Start backend
+make frontend      # Start frontend
+make dev           # Start both
+
+# Docker
+make docker-build  # Build containers
+make docker-up     # Start containers
+make docker-down   # Stop containers
+make docker-logs   # View logs
+
+# Cleanup
+make clean         # Remove build artifacts
+```
+
+## Database/Storage
 
 ### ChromaDB
 
-The vector store is file-based and persists to `./data/chroma/`.
+The vector store persists to `./data/chroma/`. To reset:
 
-To reset:
 ```bash
 rm -rf ./data/chroma
+```
+
+### ArXiv Digests
+
+Stored as JSON in `./data/arxiv/digests/`.
+
+### Telegram Session
+
+Session file at `./data/telegram_session`.
+
+## Testing
+
+See [Testing](testing.md) for detailed test documentation.
+
+Quick start:
+
+```bash
+# Run all tests
+make test
+
+# Run with coverage
+make test-cov
+
+# Run specific test file
+cd backend && python -m pytest ../tests/services/test_arxiv.py -v
+
+# Run integration tests (requires API keys)
+cd backend && python -m pytest ../tests/integration/ -v
 ```
 
 ## Debugging
 
 ### Backend Debugging
 
-VS Code launch configuration:
+1. Use VS Code debugger with the FastAPI launch config
+2. Set breakpoints in code
+3. Check logs: `uvicorn` outputs to console
 
-```json
-{
-  "name": "FastAPI",
-  "type": "python",
-  "request": "launch",
-  "module": "uvicorn",
-  "args": ["main:app", "--reload"],
-  "cwd": "${workspaceFolder}/backend"
-}
-```
+### Frontend Debugging
+
+1. Use browser DevTools (F12)
+2. React DevTools extension for component inspection
+3. Check Network tab for API calls
 
 ### API Testing
 
-Use the built-in Swagger UI at http://localhost:8000/docs
+1. Swagger UI at http://localhost:8000/docs
+2. Thunder Client VS Code extension
+3. curl or httpie
 
-Or Thunder Client / Postman for API testing.
+## Troubleshooting
+
+### Import Errors
+
+Ensure you're in the virtual environment:
+```bash
+which python  # Should show venv path
+```
+
+### Port Conflicts
+
+Kill processes on ports:
+```bash
+lsof -i :8000  # Find backend process
+lsof -i :5173  # Find frontend process
+kill -9 <PID>
+```
+
+### Hot Reload Not Working
+
+- Backend: Ensure `--reload` flag is set
+- Frontend: Check Vite console for errors
+- Docker: Ensure volumes are mounted correctly
+
+### Type Errors
+
+Run mypy to check:
+```bash
+cd backend && python -m mypy . --ignore-missing-imports
+```
+
+### Environment Variables Not Loading
+
+1. Check `.env` file exists in correct location
+2. Restart the server after changes
+3. Verify variable names match `config.py`

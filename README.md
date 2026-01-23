@@ -1,28 +1,44 @@
 # Personal AI Assistant
 
-A unified web application for personal productivity: AI chat with RAG, notes/diary, tasks, and calendar — all integrated with Microsoft 365.
-Goal of hte projects is to minimize the time spent on scrolling and useless information consumption.
+A unified web application for personal productivity: AI chat with RAG, notes/diary, tasks, and calendar integrated with Microsoft 365. The goal is to minimize time spent on scrolling and useless information consumption.
 
 ## Features
 
-- **AI Chat** - Conversational AI with RAG from notes, tasks, calendar, and email context
+### AI and Chat
+- **Multi-Provider LLM Support** - Anthropic (Claude), OpenAI (GPT), and Google (Gemini) with configurable defaults
+- **RAG (Retrieval-Augmented Generation)** - AI responses enhanced with context from your notes, tasks, calendar, and email
+- **Web Search** - Real-time web search via DuckDuckGo
+- **URL Fetching** - Read and analyze webpage content with BeautifulSoup
+- **AI Actions** - AI can propose tasks, events, and notes for user approval
+
+### Microsoft 365 Integration
 - **Notes** - Markdown notes synced with OneDrive (Diary, Projects, Study, Inbox)
 - **OneNote** - Full OneNote integration for mobile note-taking
 - **Tasks** - Microsoft To Do integration with full CRUD
 - **Calendar** - Outlook calendar view and event creation
 - **Email** - Email inbox viewing and search
+
+### External Integrations
 - **GitHub** - Full GitHub integration (issues, PRs, repos, search, write operations)
-- **Telegram** - Read Telegram messages and chats (requires user API credentials)
-- **AI Actions** - AI can propose tasks, events, and notes for user approval
-- **Auto-Sync** - Background syncing of notes to vector store for RAG
+- **Telegram** - Read Telegram messages and chats (optional, requires user API credentials)
+- **ArXiv Digest** - Daily research paper digest with AI-powered relevance ranking
+
+### Infrastructure
+- **Vector Store** - ChromaDB for semantic search and embeddings
+- **Auto-Sync** - Background syncing of notes to vector store
 - **PWA** - Installable as a Progressive Web App on mobile
+- **Security** - Prompt injection detection, rate limiting, input sanitization
 
 ## Architecture
 
 ```
-Frontend (React) → FastAPI Backend → Microsoft Graph API
-                        ↓
-                  LangChain + ChromaDB
+Frontend (React) --> FastAPI Backend --> Microsoft Graph API
+                          |
+                          +--> LangChain + ChromaDB (Vector Store)
+                          |
+                          +--> LLM Providers (Anthropic/OpenAI/Google)
+                          |
+                          +--> External APIs (GitHub, Telegram, ArXiv)
 ```
 
 ## Prerequisites
@@ -30,24 +46,25 @@ Frontend (React) → FastAPI Backend → Microsoft Graph API
 - Python 3.11+
 - Node.js 18+
 - Microsoft Azure account (for OAuth app registration)
-- Anthropic or OpenAI API key
+- At least one LLM API key: Anthropic, OpenAI, or Google
 
 ## Azure AD Setup
 
 1. Go to [Azure Portal](https://portal.azure.com)
-2. Navigate to **Azure Active Directory** → **App registrations** → **New registration**
+2. Navigate to **Azure Active Directory** -> **App registrations** -> **New registration**
 3. Configure:
    - Name: `Personal AI Assistant`
    - Supported account types: `Accounts in any organizational directory and personal Microsoft accounts`
-   - Redirect URI: `Web` → `http://localhost:8000/auth/callback`
+   - Redirect URI: `Web` -> `http://localhost:8000/auth/callback`
 4. After creation, note the **Application (client) ID**
-5. Go to **Certificates & secrets** → **New client secret** → Copy the secret value
-6. Go to **API permissions** → **Add a permission** → **Microsoft Graph** → **Delegated permissions**:
+5. Go to **Certificates & secrets** -> **New client secret** -> Copy the secret value
+6. Go to **API permissions** -> **Add a permission** -> **Microsoft Graph** -> **Delegated permissions**:
    - `User.Read`
    - `Files.ReadWrite.All`
    - `Tasks.ReadWrite`
    - `Calendars.ReadWrite`
    - `Mail.Read`
+   - `Notes.ReadWrite` (for OneNote)
 7. Click **Grant admin consent** (if you have admin rights)
 
 ## Quick Start
@@ -95,9 +112,121 @@ Open http://localhost:5173 in your browser.
 
 ## Docker Setup
 
+### Development with Docker Compose
+
+Run both frontend and backend with hot reload:
+
 ```bash
-docker-compose up --build 
+docker-compose up --build
 ```
+
+This starts:
+- Backend at http://localhost:8000
+- Frontend at http://localhost:5173
+
+### Development Container
+
+A full development container is available with Claude Code, Fly.io CLI, and GitHub CLI pre-installed:
+
+```bash
+# Build the dev container
+docker build -f Dockerfile.dev -t project-assistant-dev .
+
+# Run with your project mounted
+docker run -it -v $(pwd):/workspace project-assistant-dev
+
+# Inside the container:
+# - claude: Claude Code CLI
+# - flyctl: Fly.io CLI
+# - gh: GitHub CLI
+# - node/npm: Node.js 20
+# - python3: Python 3.11
+```
+
+### Production Build
+
+Build a single production image (frontend + backend + nginx):
+
+```bash
+docker build -f Dockerfile.fly -t project-assistant .
+docker run -p 8080:8080 --env-file .env project-assistant
+```
+
+## Fly.io Deployment
+
+### Initial Setup
+
+1. Install the Fly.io CLI: https://fly.io/docs/hands-on/install-flyctl/
+
+2. Authenticate:
+```bash
+flyctl auth login
+```
+
+3. Create the app (first time only):
+```bash
+flyctl apps create project-assistant
+```
+
+4. Create a persistent volume for ChromaDB:
+```bash
+flyctl volumes create chromadb_data --region lhr --size 1
+```
+
+5. Set secrets:
+```bash
+flyctl secrets set \
+  AZURE_CLIENT_ID=your-client-id \
+  AZURE_CLIENT_SECRET=your-client-secret \
+  ANTHROPIC_API_KEY=your-api-key \
+  SECRET_KEY=your-secret-key \
+  GITHUB_TOKEN=your-token
+```
+
+### Deploy
+
+```bash
+flyctl deploy
+```
+
+The app will be available at `https://project-assistant.fly.dev`
+
+### Configuration
+
+The `fly.toml` configuration:
+
+```toml
+app = "project-assistant"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile.fly"
+
+[env]
+  DEBUG = "false"
+  CHROMA_PERSIST_DIRECTORY = "/app/data/chroma"
+  FRONTEND_URL = "https://project-assistant.fly.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[mounts]
+  source = "chromadb_data"
+  destination = "/app/data"
+```
+
+### Update Azure Redirect URI
+
+For production, add the Fly.io callback URL to your Azure AD app:
+- `https://project-assistant.fly.dev/auth/callback`
 
 ## Project Structure
 
@@ -267,22 +396,80 @@ OneDrive/
 - `DELETE /onenote/pages/{id}` - Delete page
 - `GET /onenote/diary/today` - Get/create today's diary page
 
+### ArXiv
+- `GET /arxiv/digest` - Get the most recent digest
+- `GET /arxiv/digest/{date}` - Get digest for specific date (YYYY-MM-DD)
+- `GET /arxiv/digests` - List available digest dates
+- `GET /arxiv/status` - Get service status
+- `POST /arxiv/run-now` - Trigger immediate digest generation
+- `POST /arxiv/scheduler/start` - Start daily scheduler
+- `POST /arxiv/scheduler/stop` - Stop scheduler
+- `GET /arxiv/config` - Get current configuration
+- `PUT /arxiv/config` - Update configuration (runtime only)
+
 ## Environment Variables
+
+### Required
 
 | Variable | Description |
 |----------|-------------|
 | `AZURE_CLIENT_ID` | Azure AD application ID |
 | `AZURE_CLIENT_SECRET` | Azure AD client secret |
 | `AZURE_TENANT_ID` | `common` for personal accounts |
-| `ANTHROPIC_API_KEY` | Anthropic API key (for Claude) |
-| `OPENAI_API_KEY` | OpenAI API key (for embeddings + optional LLM) |
-| `DEFAULT_LLM_PROVIDER` | `anthropic` or `openai` |
+| `AZURE_REDIRECT_URI` | OAuth callback URL (default: `http://localhost:8000/auth/callback`) |
+| `SECRET_KEY` | Secret key for session encryption (change in production) |
+
+### AI Providers (at least one required)
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key (for Claude models) |
+| `OPENAI_API_KEY` | OpenAI API key (for GPT models and embeddings) |
+| `GOOGLE_API_KEY` | Google API key (for Gemini models) |
+| `DEFAULT_LLM_PROVIDER` | `anthropic`, `openai`, or `google` |
+| `DEFAULT_MODEL` | Model name (default: `claude-sonnet-4-20250514`) |
+
+### OneDrive & Storage
+
+| Variable | Description |
+|----------|-------------|
 | `ONEDRIVE_BASE_FOLDER` | Base folder in OneDrive (default: `PersonalAI`) |
+| `CHROMA_PERSIST_DIRECTORY` | Vector store path (default: `./data/chroma`) |
+
+### GitHub Integration
+
+| Variable | Description |
+|----------|-------------|
 | `GITHUB_TOKEN` | GitHub Personal Access Token (fine-grained recommended) |
 | `GITHUB_USERNAME` | Your GitHub username |
+
+### Telegram Integration (optional)
+
+| Variable | Description |
+|----------|-------------|
 | `TELEGRAM_API_ID` | Telegram API ID from https://my.telegram.org |
 | `TELEGRAM_API_HASH` | Telegram API hash |
 | `TELEGRAM_PHONE` | Your phone number with country code |
+| `TELEGRAM_SESSION_PATH` | Session file path (default: `./data/telegram_session`) |
+
+### ArXiv Digest
+
+| Variable | Description |
+|----------|-------------|
+| `ARXIV_CATEGORIES` | Comma-separated arXiv categories (default: `cs.AI,cs.CL,cs.LG,q-fin.ST,stat.ML`) |
+| `ARXIV_INTERESTS` | Research interests for paper ranking |
+| `ARXIV_SCHEDULE_HOUR` | UTC hour for daily digest (default: `6`) |
+| `ARXIV_MAX_PAPERS` | Max papers to fetch (default: `50`) |
+| `ARXIV_TOP_N` | Top N papers in digest (default: `10`) |
+| `ARXIV_LLM_PROVIDER` | LLM provider for ranking (default: `anthropic`) |
+
+### Web Features
+
+| Variable | Description |
+|----------|-------------|
+| `ENABLE_WEB_SEARCH` | Enable AI web search (default: `true`) |
+| `ENABLE_URL_FETCH` | Enable AI URL fetching (default: `true`) |
+| `FRONTEND_URL` | Frontend URL for CORS (default: `http://localhost:5173`) |
 
 ## GitHub Setup
 
@@ -305,6 +492,49 @@ OneDrive/
 5. Copy **App api_hash** to `TELEGRAM_API_HASH`
 6. Set `TELEGRAM_PHONE` to your phone number (e.g., `+1234567890`)
 7. On first use, call `POST /telegram/auth/start` then `POST /telegram/auth/complete` with the code sent to your phone
+
+## ArXiv Digest Setup
+
+The ArXiv digest feature fetches recent papers from specified categories and uses AI to rank them by relevance to your research interests.
+
+### Configuration
+
+Set in `.env`:
+
+```bash
+ARXIV_CATEGORIES=cs.AI,cs.CL,cs.LG,q-fin.ST,stat.ML
+ARXIV_INTERESTS=AI agents, LLMs, NLP, quantitative finance, ML for trading
+ARXIV_SCHEDULE_HOUR=6  # UTC hour for daily run
+ARXIV_MAX_PAPERS=50    # Papers to fetch
+ARXIV_TOP_N=10         # Top papers in digest
+ARXIV_LLM_PROVIDER=anthropic  # anthropic, openai, or google
+```
+
+### Usage
+
+```bash
+# Get latest digest
+GET /arxiv/digest
+
+# Trigger manual digest generation
+POST /arxiv/run-now
+
+# Start daily scheduler
+POST /arxiv/scheduler/start
+
+# Stop scheduler
+POST /arxiv/scheduler/stop
+
+# Check status
+GET /arxiv/status
+```
+
+### How It Works
+
+1. Fetches recent papers from arXiv API for configured categories
+2. Uses a fast LLM (Claude Haiku, GPT-3.5, or Gemini Flash) to score relevance
+3. Returns top N papers ranked by relevance with explanations
+4. Digests are saved to `./data/arxiv/digests/` as JSON files
 
 ## Development
 
