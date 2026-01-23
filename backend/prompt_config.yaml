@@ -1,0 +1,45 @@
+# Prompt Configuration for Personal AI Assistant
+# This file allows admins to customize AI behavior per role.
+# Changes take effect immediately (hot-reload on next request).
+
+# Global instructions added to ALL roles
+global_instructions: ""
+
+# Per-role configuration
+# Available roles: general, email, tasks, calendar, notes, research
+roles:
+  # Example: Customize the general assistant
+  general:
+    # Additional instructions appended to the role's system prompt
+    custom_instructions: ""
+    # Feature toggles (all default to true)
+    enable_actions: true
+    enable_search: true
+    enable_fetch: true
+
+  # Example: Make email assistant more formal
+  email:
+    custom_instructions: ""
+    enable_actions: true
+
+  # Example: Customize task management
+  tasks:
+    custom_instructions: ""
+    enable_actions: true
+
+  # Example: Customize calendar assistant
+  calendar:
+    custom_instructions: ""
+    enable_actions: true
+
+  # Example: Customize notes assistant
+  notes:
+    custom_instructions: ""
+    enable_actions: true
+
+  # Example: Customize research assistant
+  research:
+    custom_instructions: ""
+    enable_actions: true
+    enable_search: true
+    enable_fetch: true

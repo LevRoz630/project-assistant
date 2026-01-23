@@ -2,6 +2,7 @@
 
 import html
 import re
+import unicodedata
 
 
 class PromptSanitizer:
@@ -9,6 +10,7 @@ class PromptSanitizer:
 
     # Patterns that may indicate prompt injection attempts
     DANGEROUS_PATTERNS = [
+        # Original patterns - instruction override attempts
         r"ignore\s*(all\s*)?(previous|prior|above)\s*(instructions?|prompts?)",
         r"forget\s*(all\s*)?(previous|prior|above)",
         r"you\s+are\s+now\s+(a|an|in)",
@@ -21,6 +23,23 @@ class PromptSanitizer:
         r"jailbreak",
         r"DAN\s+mode",
         r"\bDAN\b",
+        # Role switching in code blocks
+        r"```\s*(system|assistant|user)",
+        # Common instruction markers
+        r"\[INST\]|\[/INST\]",
+        # Model-specific tokens
+        r"<\|.*?\|>",
+        # Role labels
+        r"(^|\s)(human|assistant|system)\s*:",
+        # Markdown role markers
+        r"###\s*(instruction|response|system)",
+        # Identity manipulation
+        r"as\s+an?\s+(ai|language\s+model|chatbot|assistant)",
+        # Imperative commands to AI
+        r"you\s+(must|will|shall|should)\s+(now|always|never)",
+        # Context escape attempts
+        r"(end|exit|escape)\s*(context|prompt|instruction)",
+        r"===+\s*(end|system|new)",
     ]
 
     # Compiled patterns for efficiency
@@ -31,15 +50,30 @@ class PromptSanitizer:
         """Get compiled regex patterns (lazy initialization)."""
         if cls._compiled_patterns is None:
             cls._compiled_patterns = [
-                re.compile(pattern, re.IGNORECASE) for pattern in cls.DANGEROUS_PATTERNS
+                re.compile(pattern, re.IGNORECASE | re.MULTILINE)
+                for pattern in cls.DANGEROUS_PATTERNS
             ]
         return cls._compiled_patterns
 
     @classmethod
+    def normalize_unicode(cls, text: str) -> str:
+        """
+        Normalize unicode to prevent obfuscation attacks.
+
+        Converts various unicode representations to their canonical form,
+        preventing attackers from using lookalike characters to bypass filters.
+        """
+        # NFKC normalization converts compatibility characters to their canonical form
+        # e.g., "ｉｇｎｏｒｅ" (fullwidth) -> "ignore" (ASCII)
+        return unicodedata.normalize("NFKC", text)
+
+    @classmethod
     def contains_injection_attempt(cls, text: str) -> bool:
         """Check if text contains potential prompt injection patterns."""
+        # Normalize unicode first to catch obfuscation attempts
+        normalized = cls.normalize_unicode(text)
         for pattern in cls._get_patterns():
-            if pattern.search(text):
+            if pattern.search(normalized):
                 return True
         return False
 
@@ -66,8 +100,11 @@ class PromptSanitizer:
         if not text:
             return ""
 
+        # Normalize unicode first to prevent obfuscation
+        result = cls.normalize_unicode(text)
+
         # Truncate to prevent DOS/context overflow
-        result = text[:max_length]
+        result = result[:max_length]
 
         # Normalize whitespace (collapse multiple spaces/newlines)
         result = " ".join(result.split())

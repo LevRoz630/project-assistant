@@ -126,6 +126,19 @@ If you need up-to-date information or facts you don't know, output a SEARCH bloc
 You can include multiple SEARCH blocks if needed. After searching, use the results to answer the user's question.
 """
 
+# URL fetching instructions for reading webpage content
+FETCH_INSTRUCTIONS = """
+URL FETCH - You can fetch and read the content of web pages:
+If the user provides a URL or you need to read a specific webpage, output a FETCH block:
+
+```FETCH
+{{"url": "https://example.com/page"}}
+```
+
+You can include multiple FETCH blocks if needed. The page content will be extracted and provided to you.
+Only use this for public web pages. Do not attempt to fetch internal/private URLs.
+"""
+
 # Role-specific prompts
 ROLE_PROMPTS: dict[AIRole, str] = {
     AIRole.GENERAL: f"""You are a helpful personal AI assistant with access to the user's Microsoft 365 data.
@@ -140,6 +153,8 @@ CRITICAL RULES:
 {ACTION_INSTRUCTIONS}
 
 {SEARCH_INSTRUCTIONS}
+
+{FETCH_INSTRUCTIONS}
 
 {CONTEXT_TEMPLATE}
 """,
@@ -247,8 +262,11 @@ CAPABILITIES:
 - Research topics and provide summaries
 - Find answers to factual questions
 - Stay updated on recent news and events
+- Fetch and read content from URLs
 
 {SEARCH_INSTRUCTIONS}
+
+{FETCH_INSTRUCTIONS}
 
 {ACTION_INSTRUCTIONS}
 
@@ -283,15 +301,33 @@ def detect_role(message: str) -> AIRole:
 
 def get_role_prompt(role: AIRole) -> str:
     """
-    Get the system prompt for a specific role.
+    Get the system prompt for a specific role, with any admin customizations applied.
 
     Args:
         role: The AI role to get prompt for
 
     Returns:
-        The system prompt string for the role
+        The system prompt string for the role, including any custom instructions
     """
-    return ROLE_PROMPTS.get(role, ROLE_PROMPTS[AIRole.GENERAL])
+    from services.prompt_config import get_custom_instructions, get_global_instructions
+
+    base_prompt = ROLE_PROMPTS.get(role, ROLE_PROMPTS[AIRole.GENERAL])
+
+    # Get any custom instructions
+    global_instructions = get_global_instructions()
+    custom_instructions = get_custom_instructions(role)
+
+    # Append custom instructions if present
+    additions = []
+    if global_instructions:
+        additions.append(f"\n\n===== GLOBAL CUSTOM INSTRUCTIONS =====\n{global_instructions}")
+    if custom_instructions:
+        additions.append(f"\n\n===== ROLE-SPECIFIC CUSTOM INSTRUCTIONS =====\n{custom_instructions}")
+
+    if additions:
+        return base_prompt + "".join(additions)
+
+    return base_prompt
 
 
 def get_role_description(role: AIRole) -> str:

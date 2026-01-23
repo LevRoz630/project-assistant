@@ -6,6 +6,7 @@ from config import get_settings
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from services.prompts import AIRole, get_role_prompt
 
@@ -27,6 +28,11 @@ def get_llm(provider: str | None = None, model: str | None = None):
         return ChatOpenAI(
             model=model,
             api_key=settings.openai_api_key,
+        )
+    elif provider == "google":
+        return ChatGoogleGenerativeAI(
+            model=model,
+            google_api_key=settings.google_api_key,
         )
     else:
         raise ValueError(f"Unknown provider: {provider}")

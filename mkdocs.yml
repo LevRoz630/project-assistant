@@ -1,0 +1,67 @@
+site_name: Personal AI Assistant
+site_description: Documentation for the Personal AI Assistant with Microsoft 365 integration
+site_url: https://example.com/docs
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Configuration: getting-started/configuration.md
+    - Azure Setup: getting-started/azure-setup.md
+  - Features:
+    - AI Chat: features/ai-chat.md
+    - Notes: features/notes.md
+    - Tasks: features/tasks.md
+    - Calendar: features/calendar.md
+    - Email: features/email.md
+    - GitHub: features/github.md
+    - Telegram: features/telegram.md
+    - Web Search: features/web-search.md
+  - API Reference:
+    - Overview: api/overview.md
+    - Authentication: api/authentication.md
+    - Chat Endpoints: api/chat.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Security: architecture/security.md
+  - Development:
+    - Setup: development/setup.md
+    - Testing: development/testing.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+
+plugins:
+  - search

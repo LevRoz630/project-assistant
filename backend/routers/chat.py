@@ -8,7 +8,7 @@ from auth import get_access_token
 from config import get_settings
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from services.actions import ActionType, get_action_store
 from services.ai import generate_response, generate_response_stream
 from services.graph import GraphClient
@@ -21,7 +21,9 @@ from services.sanitization import (
     sanitize_task_content,
 )
 from services.search import execute_searches
+from services.security import SecurityEventType, log_security_event
 from services.vectors import get_collection_stats, ingest_document, search_documents
+from services.web_fetch import fetch_urls
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 settings = get_settings()
@@ -58,21 +60,52 @@ def _parse_searches(response_text: str) -> tuple[str, list[str]]:
             search_data = json.loads(match.strip())
             query = search_data.get("query", "")
             if query:
-                # Sanitize the search query
-                sanitized_query = PromptSanitizer.sanitize(query, max_length=200, filter_injections=False)
-                queries.append(sanitized_query)
+                # Sanitize the search query with injection filtering enabled
+                sanitized_query = PromptSanitizer.sanitize(query, max_length=200, filter_injections=True)
+                # Only add if not filtered
+                if sanitized_query != "[Content filtered for security]":
+                    queries.append(sanitized_query)
         except json.JSONDecodeError:
             # Maybe it's just a plain query string
             query = match.strip()
             if query:
-                sanitized_query = PromptSanitizer.sanitize(query, max_length=200, filter_injections=False)
-                queries.append(sanitized_query)
+                sanitized_query = PromptSanitizer.sanitize(query, max_length=200, filter_injections=True)
+                # Only add if not filtered
+                if sanitized_query != "[Content filtered for security]":
+                    queries.append(sanitized_query)
 
     # Remove SEARCH blocks from response for cleaner display
     cleaned_response = re.sub(search_pattern, '', response_text, flags=re.DOTALL)
     cleaned_response = cleaned_response.strip()
 
     return cleaned_response, queries
+
+
+def _parse_fetches(response_text: str) -> tuple[str, list[str]]:
+    """Parse FETCH blocks from AI response and return cleaned response + URLs."""
+    fetch_pattern = r'```FETCH\s*\n?(.*?)\n?```'
+    urls = []
+
+    matches = re.findall(fetch_pattern, response_text, re.DOTALL)
+    for match in matches:
+        try:
+            fetch_data = json.loads(match.strip())
+            url = fetch_data.get("url", "")
+            if url:
+                # Basic URL validation
+                if url.startswith(("http://", "https://")):
+                    urls.append(url)
+        except json.JSONDecodeError:
+            # Maybe it's just a plain URL string
+            url = match.strip()
+            if url.startswith(("http://", "https://")):
+                urls.append(url)
+
+    # Remove FETCH blocks from response for cleaner display
+    cleaned_response = re.sub(fetch_pattern, '', response_text, flags=re.DOTALL)
+    cleaned_response = cleaned_response.strip()
+
+    return cleaned_response, urls
 
 
 def _create_action_from_data(action_data: dict) -> dict | None:
@@ -246,6 +279,16 @@ class ChatRequest(BaseModel):
     include_calendar: bool = True  # Include calendar in context
     include_email: bool = True  # Include recent emails in context
 
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, v: str) -> str:
+        """Validate and clean message input."""
+        if not v or not v.strip():
+            raise ValueError("Message cannot be empty")
+        if len(v) > 10000:
+            raise ValueError("Message too long (max 10000 characters)")
+        return v.strip()
+
 
 class ChatResponse(BaseModel):
     """Response from chat endpoint."""
@@ -266,6 +309,16 @@ async def send_message(request: Request, chat_request: ChatRequest):
     token = get_access_token(session_id)
     if not token:
         raise HTTPException(status_code=401, detail="Session expired")
+
+    # Check user input for potential injection attempts
+    if PromptSanitizer.contains_injection_attempt(chat_request.message):
+        log_security_event(
+            SecurityEventType.INJECTION_ATTEMPT,
+            session_id,
+            {"source": "user_message", "message_length": len(chat_request.message)},
+        )
+        # We log but still allow the message - the AI is instructed to ignore manipulations
+        # For stricter security, you could return an error here instead
 
     # Get notes context if enabled
     context = ""
@@ -344,6 +397,34 @@ async def send_message(request: Request, chat_request: ChatRequest):
                     role=role,
                 )
 
+    # Check for URL fetch requests if enabled
+    fetch_results_context = ""
+    if settings.enable_url_fetch:
+        cleaned_after_fetch, fetch_urls_list = _parse_fetches(response)
+
+        if fetch_urls_list:
+            # Fetch URL contents
+            fetch_results_context = await fetch_urls(fetch_urls_list)
+
+            if fetch_results_context:
+                # Re-generate response with fetched content
+                augmented_context = context
+                if search_results_context:
+                    augmented_context = f"{augmented_context}\n\n===== WEB SEARCH RESULTS =====\n{search_results_context}\n===== END WEB SEARCH RESULTS =====" if augmented_context else f"===== WEB SEARCH RESULTS =====\n{search_results_context}\n===== END WEB SEARCH RESULTS ====="
+                if fetch_results_context:
+                    augmented_context = f"{augmented_context}\n\n===== FETCHED PAGE CONTENT =====\n{fetch_results_context}\n===== END FETCHED PAGE CONTENT =====" if augmented_context else f"===== FETCHED PAGE CONTENT =====\n{fetch_results_context}\n===== END FETCHED PAGE CONTENT ====="
+
+                response = await generate_response(
+                    user_input=chat_request.message,
+                    context=augmented_context,
+                    tasks_context=tasks_context,
+                    calendar_context=calendar_context,
+                    email_context=email_context,
+                    chat_history=history,
+                    current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    role=role,
+                )
+
     # Parse and create any proposed actions
     cleaned_response, parsed_actions = _parse_actions(response)
     proposed_actions = []
@@ -354,7 +435,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
 
     return ChatResponse(
         response=cleaned_response if cleaned_response else response,
-        context_used=bool(context) or bool(tasks_context) or bool(calendar_context) or bool(search_results_context),
+        context_used=bool(context) or bool(tasks_context) or bool(calendar_context) or bool(search_results_context) or bool(fetch_results_context),
         sources=sources if sources else None,
         proposed_actions=proposed_actions if proposed_actions else None,
     )
@@ -370,6 +451,14 @@ async def stream_message(request: Request, chat_request: ChatRequest):
     token = get_access_token(session_id)
     if not token:
         raise HTTPException(status_code=401, detail="Session expired")
+
+    # Check user input for potential injection attempts
+    if PromptSanitizer.contains_injection_attempt(chat_request.message):
+        log_security_event(
+            SecurityEventType.INJECTION_ATTEMPT,
+            session_id,
+            {"source": "user_message_stream", "message_length": len(chat_request.message)},
+        )
 
     # Get notes context if enabled
     context = ""
