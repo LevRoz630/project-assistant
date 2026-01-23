@@ -6,25 +6,25 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from auth import router as auth_router
-from config import get_settings
+from .auth import router as auth_router
+from .config import get_settings
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from routers.actions import router as actions_router
-from routers.arxiv import router as arxiv_router
-from routers.calendar import router as calendar_router
-from routers.chat import router as chat_router
-from routers.email import router as email_router
-from routers.github import router as github_router
-from routers.notes import router as notes_router
-from routers.onenote import router as onenote_router
-from routers.sync import router as sync_router
-from routers.tasks import router as tasks_router
-from routers.telegram import router as telegram_router
-from services.arxiv import get_arxiv_scheduler
-from services.security import SecurityEventType, log_security_event
+from .routers.actions import router as actions_router
+from .routers.arxiv import router as arxiv_router
+from .routers.calendar import router as calendar_router
+from .routers.chat import router as chat_router
+from .routers.email import router as email_router
+from .routers.github import router as github_router
+from .routers.notes import router as notes_router
+from .routers.onenote import router as onenote_router
+from .routers.sync import router as sync_router
+from .routers.tasks import router as tasks_router
+from .routers.telegram import router as telegram_router
+from .services.arxiv import get_arxiv_scheduler
+from .services.security import SecurityEventType, log_security_event
 
 settings = get_settings()
 
