@@ -33,6 +33,10 @@ dependencies = [
     "chromadb>=0.4.22",
     "openai>=1.10.0",
     "tiktoken>=0.5.2",
+    "beautifulsoup4>=4.12.0",
+    "PyGithub>=2.1.0",
+    "telethon>=1.34.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

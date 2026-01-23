@@ -8,7 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-from services.prompts import AIRole, get_role_prompt
+from .prompts import AIRole, get_role_prompt
 
 settings = get_settings()
 

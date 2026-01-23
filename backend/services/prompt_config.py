@@ -6,7 +6,7 @@ from typing import Any
 
 import yaml
 
-from services.prompts import AIRole
+from .prompts import AIRole
 
 # Path to the config file (relative to backend directory)
 CONFIG_FILE = Path(__file__).parent.parent / "prompt_config.yaml"

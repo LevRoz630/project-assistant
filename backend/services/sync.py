@@ -7,8 +7,8 @@ from datetime import datetime
 
 from ..config import get_settings
 
-from services.graph import GraphClient
-from services.vectors import delete_document, ingest_document
+from .graph import GraphClient
+from .vectors import delete_document, ingest_document
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

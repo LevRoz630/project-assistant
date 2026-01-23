@@ -7,7 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from ..config import get_settings
-from services.sanitization import PromptSanitizer
+from .sanitization import PromptSanitizer
 
 settings = get_settings()
 
