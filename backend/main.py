@@ -101,21 +101,6 @@ async def rate_limit_middleware(request: Request, call_next):
     return await call_next(request)
 
 
-# Include routers
-app.include_router(auth_router)
-app.include_router(chat_router)
-app.include_router(notes_router)
-app.include_router(onenote_router)
-app.include_router(tasks_router)
-app.include_router(calendar_router)
-app.include_router(email_router)
-app.include_router(telegram_router)
-app.include_router(github_router)
-app.include_router(sync_router)
-app.include_router(actions_router)
-app.include_router(arxiv_router)
-
-
 @app.get("/health")
 async def health():
     """Health check endpoint."""
@@ -132,13 +117,28 @@ async def api_info():
     }
 
 
+# Include routers - MUST be before catch-all SPA route
+app.include_router(auth_router)
+app.include_router(chat_router)
+app.include_router(notes_router)
+app.include_router(onenote_router)
+app.include_router(tasks_router)
+app.include_router(calendar_router)
+app.include_router(email_router)
+app.include_router(telegram_router)
+app.include_router(github_router)
+app.include_router(sync_router)
+app.include_router(actions_router)
+app.include_router(arxiv_router)
+
+
 # Serve frontend static files in production
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend" / "dist"
 if FRONTEND_DIR.exists():
     # Serve static assets (js, css, images)
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIR / "assets"), name="assets")
 
-    @app.get("/{full_path:path}")
+    @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
         """Serve the SPA for all non-API routes."""
         # Check if it's a static file
