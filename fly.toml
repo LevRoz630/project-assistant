@@ -3,6 +3,7 @@ primary_region = "lhr"
 
 [build]
   dockerfile = "Dockerfile.fly"
+  ignorefile = ".dockerignore"
 
 [env]
   DEBUG = "false"
