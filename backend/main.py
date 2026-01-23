@@ -116,20 +116,20 @@ app.include_router(actions_router)
 app.include_router(arxiv_router)
 
 
-@app.get("/")
-async def root():
-    """Root endpoint."""
+@app.get("/health")
+async def health():
+    """Health check endpoint."""
+    return {"status": "healthy"}
+
+
+@app.get("/api")
+async def api_info():
+    """API info endpoint."""
     return {
         "name": settings.app_name,
         "version": "0.1.0",
         "status": "running",
     }
-
-
-@app.get("/health")
-async def health():
-    """Health check endpoint."""
-    return {"status": "healthy"}
 
 
 # Serve frontend static files in production
@@ -147,6 +147,15 @@ if FRONTEND_DIR.exists():
             return FileResponse(file_path)
         # Otherwise serve index.html for SPA routing
         return FileResponse(FRONTEND_DIR / "index.html")
+else:
+    @app.get("/")
+    async def root():
+        """Root endpoint when no frontend is available."""
+        return {
+            "name": settings.app_name,
+            "version": "0.1.0",
+            "status": "running",
+        }
 
 
 if __name__ == "__main__":
