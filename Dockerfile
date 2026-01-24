@@ -4,6 +4,7 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
+# Force rebuild: 2026-01-24
 RUN npm run build
 
 # Build backend
