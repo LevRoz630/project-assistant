@@ -94,7 +94,7 @@ async def fetch_papers(categories: list[str], max_results: int = 50) -> list[Pap
     # Build query for multiple categories (OR them together)
     cat_query = "+OR+".join([f"cat:{cat}" for cat in categories])
     url = (
-        f"http://export.arxiv.org/api/query?"
+        f"https://export.arxiv.org/api/query?"
         f"search_query={cat_query}&"
         f"sortBy=submittedDate&"
         f"sortOrder=descending&"
