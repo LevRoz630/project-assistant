@@ -1,6 +1,8 @@
 """AI Chat endpoints."""
 
+import asyncio
 import json
+import logging
 import re
 from datetime import datetime, timedelta
 
@@ -24,6 +26,8 @@ from ..services.search import execute_searches
 from ..services.security import SecurityEventType, log_security_event
 from ..services.vectors import get_collection_stats, ingest_document, search_documents
 from ..services.web_fetch import fetch_urls
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 settings = get_settings()
@@ -320,36 +324,76 @@ async def send_message(request: Request, chat_request: ChatRequest):
         # We log but still allow the message - the AI is instructed to ignore manipulations
         # For stricter security, you could return an error here instead
 
-    # Get notes context if enabled
-    context = ""
-    sources = []
-    if chat_request.use_context:
-        results = await search_documents(chat_request.message, k=5)
-        if results:
-            context_parts = []
-            for result in results:
-                content, source = sanitize_note_content(
-                    result["content"], result["source"]
-                )
-                if source not in sources:
-                    sources.append(source)
-                context_parts.append(f"[From: {source}]\n{content}")
-            context = "\n\n---\n\n".join(context_parts)
+    # Fetch all context in parallel for better performance
+    async def get_notes_context():
+        if not chat_request.use_context:
+            return "", []
+        try:
+            results = await asyncio.wait_for(
+                search_documents(chat_request.message, k=5),
+                timeout=10.0
+            )
+            if results:
+                context_parts = []
+                sources = []
+                for result in results:
+                    content, source = sanitize_note_content(
+                        result["content"], result["source"]
+                    )
+                    if source not in sources:
+                        sources.append(source)
+                    context_parts.append(f"[From: {source}]\n{content}")
+                return "\n\n---\n\n".join(context_parts), sources
+        except asyncio.TimeoutError:
+            logger.warning("Notes context fetch timed out")
+        except Exception as e:
+            logger.warning(f"Notes context fetch failed: {e}")
+        return "", []
 
-    # Get tasks context
-    tasks_context = ""
-    if chat_request.include_tasks:
-        tasks_context = await _get_tasks_context(token)
+    async def get_tasks():
+        if not chat_request.include_tasks:
+            return ""
+        try:
+            return await asyncio.wait_for(_get_tasks_context(token), timeout=10.0)
+        except asyncio.TimeoutError:
+            logger.warning("Tasks context fetch timed out")
+            return "[Tasks unavailable - request timed out]"
+        except Exception as e:
+            logger.warning(f"Tasks context fetch failed: {e}")
+            return f"[Tasks unavailable: {e}]"
 
-    # Get calendar context
-    calendar_context = ""
-    if chat_request.include_calendar:
-        calendar_context = await _get_calendar_context(token)
+    async def get_calendar():
+        if not chat_request.include_calendar:
+            return ""
+        try:
+            return await asyncio.wait_for(_get_calendar_context(token), timeout=10.0)
+        except asyncio.TimeoutError:
+            logger.warning("Calendar context fetch timed out")
+            return "[Calendar unavailable - request timed out]"
+        except Exception as e:
+            logger.warning(f"Calendar context fetch failed: {e}")
+            return f"[Calendar unavailable: {e}]"
 
-    # Get email context
-    email_context = ""
-    if chat_request.include_email:
-        email_context = await _get_email_context(token)
+    async def get_email():
+        if not chat_request.include_email:
+            return ""
+        try:
+            return await asyncio.wait_for(_get_email_context(token), timeout=10.0)
+        except asyncio.TimeoutError:
+            logger.warning("Email context fetch timed out")
+            return "[Email unavailable - request timed out]"
+        except Exception as e:
+            logger.warning(f"Email context fetch failed: {e}")
+            return f"[Email unavailable: {e}]"
+
+    # Run all context fetches in parallel
+    notes_result, tasks_context, calendar_context, email_context = await asyncio.gather(
+        get_notes_context(),
+        get_tasks(),
+        get_calendar(),
+        get_email(),
+    )
+    context, sources = notes_result
 
     # Convert history to expected format
     history = None
@@ -359,17 +403,27 @@ async def send_message(request: Request, chat_request: ChatRequest):
     # Detect role from message
     role = detect_role(chat_request.message)
 
-    # Generate initial response
-    response = await generate_response(
-        user_input=chat_request.message,
-        context=context,
-        tasks_context=tasks_context,
-        calendar_context=calendar_context,
-        email_context=email_context,
-        chat_history=history,
-        current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
-        role=role,
-    )
+    # Generate initial response with timeout
+    try:
+        response = await asyncio.wait_for(
+            generate_response(
+                user_input=chat_request.message,
+                context=context,
+                tasks_context=tasks_context,
+                calendar_context=calendar_context,
+                email_context=email_context,
+                chat_history=history,
+                current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                role=role,
+            ),
+            timeout=90.0  # 90 second timeout for LLM response
+        )
+    except asyncio.TimeoutError:
+        logger.error("LLM response generation timed out")
+        raise HTTPException(status_code=504, detail="AI response took too long. Please try a simpler question.")
+    except Exception as e:
+        logger.error(f"LLM response generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate response: {str(e)}")
 
     # Check for search requests if web search is enabled
     search_results_context = ""
@@ -377,8 +431,15 @@ async def send_message(request: Request, chat_request: ChatRequest):
         cleaned_after_search, search_queries = _parse_searches(response)
 
         if search_queries:
-            # Execute searches
-            search_results_context = await execute_searches(search_queries)
+            # Execute searches with timeout
+            try:
+                search_results_context = await asyncio.wait_for(
+                    execute_searches(search_queries),
+                    timeout=30.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Web search timed out")
+                search_results_context = ""
 
             if search_results_context:
                 # Re-generate response with search results
@@ -386,16 +447,22 @@ async def send_message(request: Request, chat_request: ChatRequest):
                 if search_results_context:
                     augmented_context = f"{context}\n\n===== WEB SEARCH RESULTS =====\n{search_results_context}\n===== END WEB SEARCH RESULTS =====" if context else f"===== WEB SEARCH RESULTS =====\n{search_results_context}\n===== END WEB SEARCH RESULTS ====="
 
-                response = await generate_response(
-                    user_input=chat_request.message,
-                    context=augmented_context,
-                    tasks_context=tasks_context,
-                    calendar_context=calendar_context,
-                    email_context=email_context,
-                    chat_history=history,
-                    current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    role=role,
-                )
+                try:
+                    response = await asyncio.wait_for(
+                        generate_response(
+                            user_input=chat_request.message,
+                            context=augmented_context,
+                            tasks_context=tasks_context,
+                            calendar_context=calendar_context,
+                            email_context=email_context,
+                            chat_history=history,
+                            current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            role=role,
+                        ),
+                        timeout=90.0
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning("LLM re-generation with search results timed out, using initial response")
 
     # Check for URL fetch requests if enabled
     fetch_results_context = ""
@@ -403,8 +470,15 @@ async def send_message(request: Request, chat_request: ChatRequest):
         cleaned_after_fetch, fetch_urls_list = _parse_fetches(response)
 
         if fetch_urls_list:
-            # Fetch URL contents
-            fetch_results_context = await fetch_urls(fetch_urls_list)
+            # Fetch URL contents with timeout
+            try:
+                fetch_results_context = await asyncio.wait_for(
+                    fetch_urls(fetch_urls_list),
+                    timeout=30.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("URL fetch timed out")
+                fetch_results_context = ""
 
             if fetch_results_context:
                 # Re-generate response with fetched content
@@ -414,16 +488,22 @@ async def send_message(request: Request, chat_request: ChatRequest):
                 if fetch_results_context:
                     augmented_context = f"{augmented_context}\n\n===== FETCHED PAGE CONTENT =====\n{fetch_results_context}\n===== END FETCHED PAGE CONTENT =====" if augmented_context else f"===== FETCHED PAGE CONTENT =====\n{fetch_results_context}\n===== END FETCHED PAGE CONTENT ====="
 
-                response = await generate_response(
-                    user_input=chat_request.message,
-                    context=augmented_context,
-                    tasks_context=tasks_context,
-                    calendar_context=calendar_context,
-                    email_context=email_context,
-                    chat_history=history,
-                    current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    role=role,
-                )
+                try:
+                    response = await asyncio.wait_for(
+                        generate_response(
+                            user_input=chat_request.message,
+                            context=augmented_context,
+                            tasks_context=tasks_context,
+                            calendar_context=calendar_context,
+                            email_context=email_context,
+                            chat_history=history,
+                            current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            role=role,
+                        ),
+                        timeout=90.0
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning("LLM re-generation with fetch results timed out, using previous response")
 
     # Parse and create any proposed actions
     cleaned_response, parsed_actions = _parse_actions(response)
@@ -460,36 +540,76 @@ async def stream_message(request: Request, chat_request: ChatRequest):
             {"source": "user_message_stream", "message_length": len(chat_request.message)},
         )
 
-    # Get notes context if enabled
-    context = ""
-    sources = []
-    if chat_request.use_context:
-        results = await search_documents(chat_request.message, k=5)
-        if results:
-            context_parts = []
-            for result in results:
-                content, source = sanitize_note_content(
-                    result["content"], result["source"]
-                )
-                if source not in sources:
-                    sources.append(source)
-                context_parts.append(f"[From: {source}]\n{content}")
-            context = "\n\n---\n\n".join(context_parts)
+    # Fetch all context in parallel for better performance
+    async def get_notes_context():
+        if not chat_request.use_context:
+            return "", []
+        try:
+            results = await asyncio.wait_for(
+                search_documents(chat_request.message, k=5),
+                timeout=10.0
+            )
+            if results:
+                context_parts = []
+                sources = []
+                for result in results:
+                    content, source = sanitize_note_content(
+                        result["content"], result["source"]
+                    )
+                    if source not in sources:
+                        sources.append(source)
+                    context_parts.append(f"[From: {source}]\n{content}")
+                return "\n\n---\n\n".join(context_parts), sources
+        except asyncio.TimeoutError:
+            logger.warning("Notes context fetch timed out (stream)")
+        except Exception as e:
+            logger.warning(f"Notes context fetch failed (stream): {e}")
+        return "", []
 
-    # Get tasks context
-    tasks_context = ""
-    if chat_request.include_tasks:
-        tasks_context = await _get_tasks_context(token)
+    async def get_tasks():
+        if not chat_request.include_tasks:
+            return ""
+        try:
+            return await asyncio.wait_for(_get_tasks_context(token), timeout=10.0)
+        except asyncio.TimeoutError:
+            logger.warning("Tasks context fetch timed out (stream)")
+            return ""
+        except Exception as e:
+            logger.warning(f"Tasks context fetch failed (stream): {e}")
+            return ""
 
-    # Get calendar context
-    calendar_context = ""
-    if chat_request.include_calendar:
-        calendar_context = await _get_calendar_context(token)
+    async def get_calendar():
+        if not chat_request.include_calendar:
+            return ""
+        try:
+            return await asyncio.wait_for(_get_calendar_context(token), timeout=10.0)
+        except asyncio.TimeoutError:
+            logger.warning("Calendar context fetch timed out (stream)")
+            return ""
+        except Exception as e:
+            logger.warning(f"Calendar context fetch failed (stream): {e}")
+            return ""
 
-    # Get email context
-    email_context = ""
-    if chat_request.include_email:
-        email_context = await _get_email_context(token)
+    async def get_email():
+        if not chat_request.include_email:
+            return ""
+        try:
+            return await asyncio.wait_for(_get_email_context(token), timeout=10.0)
+        except asyncio.TimeoutError:
+            logger.warning("Email context fetch timed out (stream)")
+            return ""
+        except Exception as e:
+            logger.warning(f"Email context fetch failed (stream): {e}")
+            return ""
+
+    # Run all context fetches in parallel
+    notes_result, tasks_context, calendar_context, email_context = await asyncio.gather(
+        get_notes_context(),
+        get_tasks(),
+        get_calendar(),
+        get_email(),
+    )
+    context, sources = notes_result
 
     # Convert history to expected format
     history = None

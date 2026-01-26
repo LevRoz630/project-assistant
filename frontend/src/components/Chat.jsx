@@ -168,11 +168,16 @@ function Chat() {
     setMessages(prev => [...prev, { role: 'user', content: userMessage }])
     setLoading(true)
 
+    // Create abort controller for timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 120000) // 2 minute timeout
+
     try {
       const res = await fetch(`${API_BASE}/chat/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        signal: controller.signal,
         body: JSON.stringify({
           message: userMessage,
           history: messages,
@@ -183,7 +188,37 @@ function Chat() {
         }),
       })
 
-      if (!res.ok) throw new Error('Failed to send message')
+      clearTimeout(timeoutId)
+
+      if (res.status === 401) {
+        // Session expired - redirect to login
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: 'Your session has expired. Please refresh the page and log in again.',
+            error: true,
+          },
+        ])
+        return
+      }
+
+      if (res.status === 429) {
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: 'Too many requests. Please wait a moment before trying again.',
+            error: true,
+          },
+        ])
+        return
+      }
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.detail || `Server error (${res.status})`)
+      }
 
       const data = await res.json()
       setMessages(prev => [
@@ -196,12 +231,23 @@ function Chat() {
         },
       ])
     } catch (error) {
+      clearTimeout(timeoutId)
       console.error('Chat error:', error)
+
+      let errorMessage = 'Sorry, something went wrong. Please try again.'
+      if (error.name === 'AbortError') {
+        errorMessage = 'The request took too long. The AI might be busy - please try again.'
+      } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`
+      }
+
       setMessages(prev => [
         ...prev,
         {
           role: 'assistant',
-          content: 'Sorry, something went wrong. Please try again.',
+          content: errorMessage,
           error: true,
         },
       ])
