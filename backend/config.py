@@ -41,7 +41,7 @@ class Settings(BaseSettings):
 
     # ChromaDB / Embeddings
     chroma_persist_directory: str = "./data/chroma"
-    embedding_provider: str = "auto"  # "auto", "openai", "google", or "huggingface"
+    embedding_provider: str = "huggingface"  # "huggingface", "openai", "google", or "auto"
 
     # Telegram (get API credentials from https://my.telegram.org)
     telegram_api_id: int = 0
