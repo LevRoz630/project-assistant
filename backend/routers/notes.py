@@ -1,6 +1,7 @@
 """Notes CRUD endpoints - OneDrive integration."""
 
 import contextlib
+import logging
 from datetime import datetime
 
 from ..auth import get_access_token_for_service
@@ -9,6 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from ..services.graph import GraphClient
 from ..services.vectors import delete_document, ingest_document
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 settings = get_settings()
@@ -152,17 +155,23 @@ async def create_note(
         # Upload the file
         result = await client.upload_file(note_path, note.content.encode("utf-8"))
 
-        # Ingest into vector store
-        await ingest_document(
-            content=note.content,
-            source_path=note_path,
-            metadata={"folder": note.folder, "filename": note.filename},
-        )
+        # Ingest into vector store (non-blocking - note is created even if this fails)
+        indexed = False
+        try:
+            await ingest_document(
+                content=note.content,
+                source_path=note_path,
+                metadata={"folder": note.folder, "filename": note.filename},
+            )
+            indexed = True
+        except Exception as e:
+            logger.warning(f"Failed to index note {note_path}: {e}")
 
         return {
             "success": True,
             "path": note_path,
             "id": result.get("id"),
+            "indexed": indexed,
         }
     except HTTPException:
         raise
@@ -184,17 +193,23 @@ async def update_note(
         # Upload the updated content
         result = await client.upload_file(note_path, note.content.encode("utf-8"))
 
-        # Re-ingest into vector store
-        await ingest_document(
-            content=note.content,
-            source_path=note_path,
-            metadata={"folder": folder, "filename": filename},
-        )
+        # Re-ingest into vector store (non-blocking)
+        indexed = False
+        try:
+            await ingest_document(
+                content=note.content,
+                source_path=note_path,
+                metadata={"folder": folder, "filename": filename},
+            )
+            indexed = True
+        except Exception as e:
+            logger.warning(f"Failed to re-index note {note_path}: {e}")
 
         return {
             "success": True,
             "path": note_path,
             "id": result.get("id"),
+            "indexed": indexed,
         }
     except Exception as e:
         if "itemNotFound" in str(e):
@@ -258,17 +273,24 @@ async def create_today_diary(
             await _ensure_folder_structure(client, "Diary")
             await client.upload_file(note_path, template.encode("utf-8"))
 
-            await ingest_document(
-                content=template,
-                source_path=note_path,
-                metadata={"folder": "Diary", "filename": filename, "type": "diary"},
-            )
+            # Index in vector store (non-blocking)
+            indexed = False
+            try:
+                await ingest_document(
+                    content=template,
+                    source_path=note_path,
+                    metadata={"folder": "Diary", "filename": filename, "type": "diary"},
+                )
+                indexed = True
+            except Exception as e:
+                logger.warning(f"Failed to index diary entry {note_path}: {e}")
 
             return {
                 "exists": False,
                 "created": True,
                 "filename": filename,
                 "content": template,
+                "indexed": indexed,
             }
 
         raise HTTPException(status_code=500, detail=str(e)) from e
