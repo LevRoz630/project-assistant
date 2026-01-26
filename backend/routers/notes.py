@@ -113,9 +113,10 @@ async def get_note(
     filename: str,
     client: GraphClient = Depends(get_graph_client),
 ):
-    """Get the content of a note."""
+    """Get the content of a note. Auto-creates if it doesn't exist."""
+    note_path = get_note_path(folder, filename)
+
     try:
-        note_path = get_note_path(folder, filename)
         content = await client.get_file_content(note_path)
         metadata = await client.get_item_by_path(note_path)
 
@@ -127,9 +128,60 @@ async def get_note(
             "created": metadata.get("createdDateTime"),
         }
     except Exception as e:
-        if "itemNotFound" in str(e):
-            raise HTTPException(status_code=404, detail="Note not found") from e
+        error_str = str(e).lower()
+        if "itemnotfound" in error_str or "404" in error_str or "not found" in error_str:
+            try:
+                return await _auto_create_note(client, folder, filename)
+            except Exception as create_err:
+                logger.error(f"Failed to auto-create note {note_path}: {create_err}")
+                raise HTTPException(status_code=500, detail=f"Failed to create note: {create_err}") from create_err
+        logger.error(f"Failed to load note {note_path}: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+async def _auto_create_note(client: GraphClient, folder: str, filename: str) -> dict:
+    """Auto-create a note with date metadata."""
+    today = datetime.now()
+    note_title = filename.replace(".md", "") if filename.endswith(".md") else filename
+    if not filename.endswith(".md"):
+        filename = f"{filename}.md"
+
+    template = f"""---
+title: {note_title}
+created: {today.strftime("%Y-%m-%d %H:%M")}
+folder: {folder}
+---
+
+# {note_title}
+
+"""
+
+    note_path = get_note_path(folder, filename)
+
+    await _ensure_folder_structure(client, folder)
+    await client.upload_file(note_path, template.encode("utf-8"))
+
+    # Index in vector store
+    indexed = False
+    try:
+        await ingest_document(
+            content=template,
+            source_path=note_path,
+            metadata={"folder": folder, "filename": filename},
+        )
+        indexed = True
+    except Exception as e:
+        logger.warning(f"Failed to index note {note_path}: {e}")
+
+    return {
+        "folder": folder,
+        "filename": filename,
+        "content": template,
+        "created": today.isoformat(),
+        "modified": today.isoformat(),
+        "auto_created": True,
+        "indexed": indexed,
+    }
 
 
 @router.post("/create")

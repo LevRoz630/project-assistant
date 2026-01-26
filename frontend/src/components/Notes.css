@@ -1,14 +1,17 @@
 .notes-layout {
-  display: grid;
-  grid-template-columns: 200px 1fr;
-  gap: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   height: calc(100vh - 180px);
 }
 
 .folders-list {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
 }
 
 .folder-item {
@@ -108,13 +111,12 @@
 }
 
 @media (max-width: 768px) {
-  .notes-layout {
-    grid-template-columns: 1fr;
+  .folders-list {
+    gap: 6px;
   }
 
-  .folders-list {
-    flex-direction: row;
-    overflow-x: auto;
-    padding-bottom: 12px;
+  .folder-item {
+    padding: 8px 12px;
+    font-size: 0.9rem;
   }
 }
