@@ -98,8 +98,55 @@ function App() {
     )
   }
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
   return (
     <div className="app-container">
+      {/* Mobile header */}
+      <header className="mobile-header">
+        <h1>AI Assistant</h1>
+        <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+          <MenuIcon />
+        </button>
+      </header>
+
+      {/* Mobile menu overlay */}
+      {mobileMenuOpen && (
+        <div className="mobile-menu-overlay" onClick={() => setMobileMenuOpen(false)}>
+          <nav className="mobile-menu" onClick={(e) => e.stopPropagation()}>
+            <NavLink to="/" onClick={() => setMobileMenuOpen(false)}>
+              <ChatIcon /> Chat
+            </NavLink>
+            <NavLink to="/notes" onClick={() => setMobileMenuOpen(false)}>
+              <NotesIcon /> Notes
+            </NavLink>
+            <NavLink to="/tasks" onClick={() => setMobileMenuOpen(false)}>
+              <TasksIcon /> Tasks
+            </NavLink>
+            <NavLink to="/calendar" onClick={() => setMobileMenuOpen(false)}>
+              <CalendarIcon /> Calendar
+            </NavLink>
+            <NavLink to="/email" onClick={() => setMobileMenuOpen(false)}>
+              <EmailIcon /> Email
+            </NavLink>
+            <NavLink to="/arxiv" onClick={() => setMobileMenuOpen(false)}>
+              <ArxivIcon /> ArXiv
+            </NavLink>
+            <div className="mobile-menu-divider"></div>
+            <NavLink to="/actions" onClick={() => setMobileMenuOpen(false)}>
+              <ActionsIcon /> Actions
+            </NavLink>
+            <NavLink to="/accounts" onClick={() => setMobileMenuOpen(false)}>
+              <SettingsIcon /> Accounts
+            </NavLink>
+            <div className="mobile-menu-divider"></div>
+            <button className="mobile-logout" onClick={handleLogout}>
+              Sign Out
+            </button>
+          </nav>
+        </div>
+      )}
+
       <aside className="sidebar">
         <div className="sidebar-header">
           <h1>AI Assistant</h1>
@@ -269,6 +316,16 @@ function SettingsIcon() {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="12" cy="12" r="3"/>
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  )
+}
+
+function MenuIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="3" y1="12" x2="21" y2="12"/>
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <line x1="3" y1="18" x2="21" y2="18"/>
     </svg>
   )
 }

@@ -373,6 +373,16 @@ a:hover {
   gap: 16px;
 }
 
+/* Mobile header - hidden on desktop */
+.mobile-header {
+  display: none;
+}
+
+/* Mobile menu overlay */
+.mobile-menu-overlay {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .grid-2, .grid-3 {
     grid-template-columns: 1fr;
@@ -380,5 +390,137 @@ a:hover {
 
   .sidebar {
     display: none;
+  }
+
+  /* Mobile header */
+  .mobile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .mobile-header h1 {
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .mobile-menu-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    padding: 8px;
+    border-radius: 8px;
+  }
+
+  .mobile-menu-btn:hover {
+    background: var(--bg-tertiary);
+  }
+
+  /* Mobile menu overlay */
+  .mobile-menu-overlay {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 200;
+    justify-content: flex-end;
+  }
+
+  .mobile-menu {
+    width: 280px;
+    max-width: 85vw;
+    background: var(--bg-secondary);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+    animation: slideIn 0.2s ease-out;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+
+  .mobile-menu a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 1rem;
+  }
+
+  .mobile-menu a:hover,
+  .mobile-menu a.active {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+
+  .mobile-menu-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 12px 0;
+  }
+
+  .mobile-logout {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    color: var(--error);
+    background: transparent;
+    border: none;
+    font-size: 1rem;
+    text-align: left;
+    width: 100%;
+  }
+
+  .mobile-logout:hover {
+    background: var(--bg-tertiary);
+  }
+
+  /* Adjust app container for mobile */
+  .app-container {
+    flex-direction: column;
+  }
+
+  .main-content {
+    height: calc(100vh - 56px);
+  }
+
+  /* Reduce padding on mobile */
+  .content-header {
+    padding: 14px 16px;
+  }
+
+  .content-header h2 {
+    font-size: 1.2rem;
+  }
+
+  .content-body {
+    padding: 16px;
+  }
+
+  /* Login page mobile */
+  .login-container {
+    padding: 20px;
+  }
+
+  .login-container h1 {
+    font-size: 1.5rem;
   }
 }

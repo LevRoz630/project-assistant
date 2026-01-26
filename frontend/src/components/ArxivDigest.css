@@ -288,12 +288,31 @@
     grid-template-columns: 1fr;
   }
 
+  .settings-panel {
+    margin: 0 16px 16px 16px;
+    padding: 16px;
+  }
+
+  .date-selector {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .date-selector select {
+    min-width: auto;
+    width: 100%;
+  }
+
   .paper-card {
     flex-direction: column;
+    padding: 16px;
   }
 
   .paper-rank {
     text-align: left;
+    font-size: 16px;
   }
 
   .paper-header {
@@ -301,7 +320,22 @@
     gap: 8px;
   }
 
+  .paper-title {
+    font-size: 15px;
+  }
+
   .relevance-score {
     align-self: flex-start;
+  }
+
+  .paper-abstract {
+    font-size: 13px;
+    -webkit-line-clamp: 3;
+  }
+
+  .paper-footer {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
   }
 }

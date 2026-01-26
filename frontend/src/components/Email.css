@@ -196,15 +196,48 @@
 @media (max-width: 900px) {
   .email-container {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
+    height: calc(100vh - 160px);
   }
 
   .email-sidebar {
-    display: none;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .email-folders {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    padding: 8px;
+    overflow-x: auto;
+  }
+
+  .email-folder {
+    white-space: nowrap;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .email-search {
+    padding: 8px;
   }
 
   .email-list {
     border-right: none;
-    max-height: 300px;
+    max-height: 250px;
+    min-height: 150px;
+  }
+
+  .email-item {
+    padding: 10px 12px;
+  }
+
+  .email-detail {
+    padding: 16px;
+  }
+
+  .email-header h3 {
+    font-size: 16px;
   }
 }
