@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import './Tasks.css'
 import { API_BASE } from '../config'
 
+// Virtual list for important tasks
+const IMPORTANT_LIST = { id: '__important__', name: 'Important', is_virtual: true }
+
 function Tasks() {
   const [taskLists, setTaskLists] = useState([])
   const [activeList, setActiveList] = useState(null)
@@ -10,14 +13,20 @@ function Tasks() {
   const [showCompleted, setShowCompleted] = useState(false)
   const [showNewTask, setShowNewTask] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [importantCount, setImportantCount] = useState(0)
 
   useEffect(() => {
     loadTaskLists()
+    loadImportantCount()
   }, [])
 
   useEffect(() => {
     if (activeList) {
-      loadTasks(activeList.id)
+      if (activeList.id === '__important__') {
+        loadImportantTasks()
+      } else {
+        loadTasks(activeList.id)
+      }
     }
   }, [activeList, showCompleted])
 
@@ -31,14 +40,44 @@ function Tasks() {
         const lists = data.lists || []
         setTaskLists(lists)
 
-        // Set default list as active
-        const defaultList = lists.find(l => l.is_default) || lists[0]
-        if (defaultList) {
-          setActiveList(defaultList)
-        }
+        // Set Important as default active list
+        setActiveList(IMPORTANT_LIST)
       }
     } catch (error) {
       console.error('Failed to load task lists:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadImportantCount = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tasks/important`, {
+        credentials: 'include',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setImportantCount(data.count || 0)
+      }
+    } catch (error) {
+      console.error('Failed to load important count:', error)
+    }
+  }
+
+  const loadImportantTasks = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(
+        `${API_BASE}/tasks/important?include_completed=${showCompleted}`,
+        { credentials: 'include' }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        setTasks(data.tasks || [])
+        setImportantCount(data.count || 0)
+      }
+    } catch (error) {
+      console.error('Failed to load important tasks:', error)
     } finally {
       setLoading(false)
     }
@@ -87,9 +126,11 @@ function Tasks() {
   }
 
   const completeTask = async (task) => {
+    // For important view, use list_id from task; otherwise use activeList
+    const listId = task.list_id || activeList.id
     try {
       const res = await fetch(
-        `${API_BASE}/tasks/complete/${activeList.id}/${task.id}`,
+        `${API_BASE}/tasks/complete/${listId}/${task.id}`,
         {
           method: 'POST',
           credentials: 'include',
@@ -97,7 +138,11 @@ function Tasks() {
       )
 
       if (res.ok) {
-        loadTasks(activeList.id)
+        if (activeList.id === '__important__') {
+          loadImportantTasks()
+        } else {
+          loadTasks(activeList.id)
+        }
       }
     } catch (error) {
       console.error('Failed to complete task:', error)
@@ -107,9 +152,11 @@ function Tasks() {
   const deleteTask = async (task) => {
     if (!confirm('Delete this task?')) return
 
+    // For important view, use list_id from task; otherwise use activeList
+    const listId = task.list_id || activeList.id
     try {
       const res = await fetch(
-        `${API_BASE}/tasks/delete/${activeList.id}/${task.id}`,
+        `${API_BASE}/tasks/delete/${listId}/${task.id}`,
         {
           method: 'DELETE',
           credentials: 'include',
@@ -117,7 +164,11 @@ function Tasks() {
       )
 
       if (res.ok) {
-        loadTasks(activeList.id)
+        if (activeList.id === '__important__') {
+          loadImportantTasks()
+        } else {
+          loadTasks(activeList.id)
+        }
       }
     } catch (error) {
       console.error('Failed to delete task:', error)
@@ -171,6 +222,17 @@ function Tasks() {
       <div className="content-body">
         <div className="tasks-layout">
           <div className="task-lists">
+            <button
+              className={`task-list-item important ${activeList?.id === '__important__' ? 'active' : ''}`}
+              onClick={() => setActiveList(IMPORTANT_LIST)}
+            >
+              <StarIcon filled />
+              Important
+              {importantCount > 0 && (
+                <span className="task-count">{importantCount}</span>
+              )}
+            </button>
+            <div className="list-divider"></div>
             {taskLists.map((list) => (
               <button
                 key={list.id}
@@ -197,10 +259,11 @@ function Tasks() {
               <div className="task-items">
                 {tasks.map((task) => {
                   const dueInfo = formatDueDate(task.due_date)
+                  const isImportant = task.importance === 'high'
                   return (
                     <div
                       key={task.id}
-                      className={`task-item ${task.status === 'completed' ? 'completed' : ''}`}
+                      className={`task-item ${task.status === 'completed' ? 'completed' : ''} ${isImportant ? 'important' : ''}`}
                     >
                       <button
                         className="task-checkbox"
@@ -210,13 +273,21 @@ function Tasks() {
                         {task.status === 'completed' ? <CheckIcon /> : null}
                       </button>
                       <div className="task-content">
-                        <div className="task-title">{task.title}</div>
+                        <div className="task-title">
+                          {isImportant && <StarIcon filled className="task-star" />}
+                          {task.title}
+                        </div>
                         {task.body && <div className="task-body">{task.body}</div>}
-                        {dueInfo && (
-                          <span className={`task-due ${dueInfo.class}`}>
-                            {dueInfo.text}
-                          </span>
-                        )}
+                        <div className="task-meta">
+                          {task.list_name && (
+                            <span className="task-list-badge">{task.list_name}</span>
+                          )}
+                          {dueInfo && (
+                            <span className={`task-due ${dueInfo.class}`}>
+                              {dueInfo.text}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button className="task-delete" onClick={() => deleteTask(task)}>
                         <TrashIcon />
@@ -258,6 +329,22 @@ function Tasks() {
         )}
       </div>
     </>
+  )
+}
+
+function StarIcon({ filled, className }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+    </svg>
   )
 }
 

@@ -3,21 +3,21 @@
   grid-template-columns: 200px 300px 1fr;
   gap: 0;
   height: calc(100vh - 120px);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
 }
 
 .email-sidebar {
   background: var(--bg-secondary);
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
 }
 
 .email-search {
   padding: 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
   display: flex;
   gap: 8px;
 }
@@ -25,19 +25,25 @@
 .email-search input {
   flex: 1;
   padding: 8px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 13px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .email-search button {
   padding: 8px 12px;
-  background: var(--primary-color);
+  background: var(--accent);
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
+}
+
+.email-search button:hover {
+  background: var(--accent-hover);
 }
 
 .email-folders {
@@ -54,49 +60,55 @@
   border-radius: 6px;
   cursor: pointer;
   margin-bottom: 2px;
+  color: var(--text-secondary);
 }
 
 .email-folder:hover {
-  background: var(--bg-hover);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .email-folder.active {
-  background: var(--primary-color);
+  background: var(--accent);
   color: white;
 }
 
 .folder-badge {
-  background: var(--primary-color);
-  color: white;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   padding: 2px 8px;
   border-radius: 10px;
   font-size: 12px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
 }
 
 .email-folder.active .folder-badge {
-  background: white;
-  color: var(--primary-color);
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
 }
 
 .email-list {
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid var(--border);
   overflow-y: auto;
   background: var(--bg-primary);
 }
 
 .email-item {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .email-item:hover {
-  background: var(--bg-hover);
+  background: var(--bg-tertiary);
 }
 
 .email-item.selected {
-  background: var(--bg-selected);
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--accent);
 }
 
 .email-item.unread {
@@ -132,7 +144,7 @@
 
 .email-date {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   margin-top: 4px;
 }
 
@@ -148,7 +160,7 @@
 .email-header {
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
 }
 
 .email-header h3 {
@@ -178,7 +190,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 @media (max-width: 900px) {

@@ -128,6 +128,45 @@ async def list_all_tasks(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@router.get("/important")
+async def list_important_tasks(
+    include_completed: bool = False,
+    client: GraphClient = Depends(get_graph_client),
+):
+    """List all important (high priority) tasks from all lists."""
+    try:
+        lists_result = await client.list_task_lists()
+        important_tasks = []
+
+        for task_list in lists_result.get("value", []):
+            list_id = task_list["id"]
+            list_name = task_list["displayName"]
+
+            tasks_result = await client.list_tasks(list_id, include_completed)
+            for task in tasks_result.get("value", []):
+                if task.get("importance") == "high":
+                    important_tasks.append(
+                        {
+                            "id": task["id"],
+                            "list_id": list_id,
+                            "list_name": list_name,
+                            "title": task["title"],
+                            "body": task.get("body", {}).get("content", ""),
+                            "status": task["status"],
+                            "due_date": task.get("dueDateTime", {}).get("dateTime"),
+                            "created": task.get("createdDateTime"),
+                            "importance": "high",
+                        }
+                    )
+
+        # Sort by due date
+        important_tasks.sort(key=lambda x: (x.get("due_date") or "9999", x.get("created") or ""))
+
+        return {"tasks": important_tasks, "count": len(important_tasks)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.post("/create")
 async def create_task(
     task: TaskCreate,

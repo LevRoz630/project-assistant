@@ -64,6 +64,52 @@ async def get_inbox(
         raise HTTPException(status_code=500, detail=f"Failed to fetch emails: {e}") from e
 
 
+@router.get("/folder/{folder_id}")
+async def get_folder_messages(
+    request: Request,
+    folder_id: str,
+    top: int = 20,
+    skip: int = 0,
+):
+    """Get messages from a specific folder."""
+    session_id = request.cookies.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    token = get_access_token(session_id)
+    if not token:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    client = GraphClient(token)
+
+    try:
+        result = await client.list_messages(folder_id, top=top, skip=skip)
+        messages = result.get("value", [])
+
+        summaries = []
+        for msg in messages:
+            from_info = msg.get("from", {}).get("emailAddress", {})
+            summaries.append(
+                {
+                    "id": msg.get("id"),
+                    "subject": msg.get("subject", "(No subject)"),
+                    "from_name": from_info.get("name", "Unknown"),
+                    "from_email": from_info.get("address", ""),
+                    "received": msg.get("receivedDateTime", ""),
+                    "is_read": msg.get("isRead", False),
+                    "preview": msg.get("bodyPreview", "")[:200],
+                }
+            )
+
+        return {
+            "folder_id": folder_id,
+            "messages": summaries,
+            "count": len(summaries),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch folder emails: {e}") from e
+
+
 @router.get("/message/{message_id}")
 async def get_message(request: Request, message_id: str):
     """Get a specific email message."""

@@ -13,8 +13,14 @@ function Email() {
 
   useEffect(() => {
     loadFolders()
-    loadEmails()
   }, [])
+
+  // Load emails when selected folder changes
+  useEffect(() => {
+    if (selectedFolder) {
+      loadEmails(selectedFolder)
+    }
+  }, [selectedFolder])
 
   const loadFolders = async () => {
     try {
@@ -23,17 +29,26 @@ function Email() {
       })
       if (res.ok) {
         const data = await res.json()
-        setFolders(data.folders || [])
+        const folderList = data.folders || []
+        setFolders(folderList)
+        // Set initial folder to inbox (or first folder if inbox not found)
+        const inbox = folderList.find(f => f.name.toLowerCase() === 'inbox')
+        if (inbox) {
+          setSelectedFolder(inbox.id)
+        } else if (folderList.length > 0) {
+          setSelectedFolder(folderList[0].id)
+        }
       }
     } catch (error) {
       console.error('Failed to load folders:', error)
     }
   }
 
-  const loadEmails = async () => {
+  const loadEmails = async (folderId) => {
     setLoading(true)
+    setSelectedEmail(null)
     try {
-      const res = await fetch(`${API_BASE}/email/inbox`, {
+      const res = await fetch(`${API_BASE}/email/folder/${folderId}`, {
         credentials: 'include',
       })
       if (res.ok) {
@@ -66,7 +81,9 @@ function Email() {
 
   const searchEmails = async () => {
     if (!searchQuery.trim()) {
-      loadEmails()
+      if (selectedFolder) {
+        loadEmails(selectedFolder)
+      }
       return
     }
 
@@ -103,7 +120,7 @@ function Email() {
       <div className="content-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2>Email</h2>
-          <button className="btn btn-secondary" onClick={loadEmails}>
+          <button className="btn btn-secondary" onClick={() => selectedFolder && loadEmails(selectedFolder)}>
             Refresh
           </button>
         </div>
