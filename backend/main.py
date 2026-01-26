@@ -107,6 +107,51 @@ async def health():
     return {"status": "healthy"}
 
 
+@app.get("/health/llm")
+async def health_llm():
+    """Test LLM API key and connectivity."""
+    import asyncio
+    from .services.ai import get_llm
+
+    provider = settings.default_llm_provider
+    model = settings.default_model
+
+    # Check if API key is configured
+    if provider == "anthropic" and not settings.anthropic_api_key:
+        return {"status": "error", "provider": provider, "error": "ANTHROPIC_API_KEY not configured"}
+    elif provider == "openai" and not settings.openai_api_key:
+        return {"status": "error", "provider": provider, "error": "OPENAI_API_KEY not configured"}
+    elif provider == "google" and not settings.google_api_key:
+        return {"status": "error", "provider": provider, "error": "GOOGLE_API_KEY not configured"}
+
+    # Test the LLM with a simple call
+    try:
+        llm = get_llm(provider, model)
+        response = await asyncio.wait_for(
+            llm.ainvoke("Say 'OK' and nothing else."),
+            timeout=30.0
+        )
+        return {
+            "status": "ok",
+            "provider": provider,
+            "model": model,
+            "test_response": response.content[:50] if hasattr(response, 'content') else str(response)[:50],
+        }
+    except asyncio.TimeoutError:
+        return {"status": "error", "provider": provider, "model": model, "error": "LLM request timed out (30s)"}
+    except Exception as e:
+        error_msg = str(e)
+        # Check for common API key errors
+        if "401" in error_msg or "unauthorized" in error_msg.lower() or "invalid" in error_msg.lower():
+            return {"status": "error", "provider": provider, "model": model, "error": f"API key invalid or unauthorized: {error_msg}"}
+        elif "429" in error_msg or "rate" in error_msg.lower():
+            return {"status": "error", "provider": provider, "model": model, "error": f"Rate limited: {error_msg}"}
+        elif "quota" in error_msg.lower() or "billing" in error_msg.lower():
+            return {"status": "error", "provider": provider, "model": model, "error": f"Quota/billing issue: {error_msg}"}
+        else:
+            return {"status": "error", "provider": provider, "model": model, "error": error_msg}
+
+
 @app.get("/api")
 async def api_info():
     """API info endpoint."""
