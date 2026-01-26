@@ -309,7 +309,7 @@ def get_role_prompt(role: AIRole) -> str:
     Returns:
         The system prompt string for the role, including any custom instructions
     """
-    from services.prompt_config import get_custom_instructions, get_global_instructions
+    from .prompt_config import get_custom_instructions, get_global_instructions
 
     base_prompt = ROLE_PROMPTS.get(role, ROLE_PROMPTS[AIRole.GENERAL])
 
