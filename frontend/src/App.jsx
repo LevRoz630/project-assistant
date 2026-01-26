@@ -15,6 +15,7 @@ function App() {
   const [user, setUser] = useState(null)
   const [accounts, setAccounts] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -97,8 +98,6 @@ function App() {
       </div>
     )
   }
-
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
     <div className="app-container">
