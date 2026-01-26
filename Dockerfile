@@ -24,15 +24,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python -m venv .venv && \
     .venv/bin/pip install --upgrade pip wheel
 
-# Copy pyproject.toml and create minimal package structure
-COPY pyproject.toml ./
-RUN mkdir -p backend && echo '__version__ = "0.1.0"' > backend/__init__.py
+# Copy requirements.txt for dependency caching
+COPY requirements.txt ./
 
 # Install CPU-only PyTorch first (much smaller than CUDA version)
 RUN .venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
 
-# Install package with dependencies (cached unless pyproject.toml changes)
-RUN .venv/bin/pip install .
+# Install dependencies (cached unless requirements.txt changes)
+RUN .venv/bin/pip install -r requirements.txt
 
 # Clean up to reduce image size
 RUN find .venv -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true && \
@@ -40,7 +39,7 @@ RUN find .venv -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
     find .venv -type d -name "test" -exec rm -rf {} + 2>/dev/null || true && \
     find .venv -name "*.pyc" -delete 2>/dev/null || true
 
-# Copy actual backend code (overwrites stub)
+# Copy backend code
 COPY backend/ ./backend/
 
 # Final stage
