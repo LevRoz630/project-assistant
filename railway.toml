@@ -1,6 +1,8 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
+buildCommand = ""
+watchPatterns = ["backend/**", "frontend/**", "pyproject.toml", "Dockerfile"]
 
 [deploy]
 startCommand = "sh -c '/app/.venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000} --timeout-keep-alive 120 --timeout-graceful-shutdown 30'"
