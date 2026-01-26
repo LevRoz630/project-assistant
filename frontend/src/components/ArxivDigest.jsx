@@ -258,23 +258,24 @@ function ArxivDigest() {
         </div>
       )}
 
-      {availableDates.length > 0 && (
-        <div className="date-selector">
-          <label>View digest for:</label>
-          <select
-            value={selectedDate || ''}
-            onChange={(e) => loadDigestByDate(e.target.value)}
-          >
-            {availableDates.map((date) => (
-              <option key={date} value={date}>
-                {formatDate(date)}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div className="content-body">
+        {availableDates.length > 0 && (
+          <div className="date-selector">
+            <label>View digest for:</label>
+            <select
+              value={selectedDate || ''}
+              onChange={(e) => loadDigestByDate(e.target.value)}
+            >
+              {availableDates.map((date) => (
+                <option key={date} value={date}>
+                  {formatDate(date)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
-      <div className="digest-container">
+        <div className="digest-container">
         {!digest ? (
           <div className="empty-state">
             <h3>No digest available</h3>
@@ -359,6 +360,7 @@ function ArxivDigest() {
             </div>
           </>
         )}
+        </div>
       </div>
     </>
   )

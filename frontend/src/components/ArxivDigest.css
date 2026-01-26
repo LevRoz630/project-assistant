@@ -1,5 +1,5 @@
 .scheduler-badge {
-  background: var(--success-color, #10b981);
+  background: var(--success);
   color: white;
   padding: 4px 12px;
   border-radius: 12px;
@@ -9,10 +9,10 @@
 
 .settings-panel {
   background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 20px;
-  margin-bottom: 20px;
+  margin: 0 24px 20px 24px;
 }
 
 .settings-panel h3 {
@@ -37,7 +37,7 @@
 .setting-group select {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 14px;
   background: var(--bg-primary);
@@ -48,7 +48,7 @@
 .setting-group textarea:focus,
 .setting-group select:focus {
   outline: none;
-  border-color: var(--primary-color);
+  border-color: var(--accent);
 }
 
 .setting-row {
@@ -63,7 +63,7 @@
   gap: 8px;
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
 }
 
 .date-selector {
@@ -83,7 +83,7 @@
 
 .date-selector select {
   padding: 8px 12px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 14px;
   background: var(--bg-primary);
@@ -120,20 +120,20 @@
   display: flex;
   gap: 16px;
   background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 20px;
   transition: border-color 0.2s;
 }
 
 .paper-card:hover {
-  border-color: var(--primary-color);
+  border-color: var(--accent);
 }
 
 .paper-rank {
   font-size: 18px;
   font-weight: 700;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   min-width: 40px;
   text-align: center;
 }
@@ -160,7 +160,7 @@
 }
 
 .paper-title:hover {
-  color: var(--primary-color);
+  color: var(--accent);
 }
 
 .relevance-score {
@@ -172,17 +172,17 @@
 }
 
 .score-high {
-  background: var(--success-color, #10b981);
+  background: var(--success);
   color: white;
 }
 
 .score-medium {
-  background: var(--warning-color, #f59e0b);
+  background: var(--warning);
   color: white;
 }
 
 .score-low {
-  background: var(--text-muted);
+  background: var(--text-secondary);
   color: white;
 }
 
@@ -202,7 +202,7 @@
 .category-tag {
   padding: 2px 8px;
   background: var(--bg-primary);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 11px;
   color: var(--text-secondary);
@@ -234,17 +234,17 @@
   justify-content: space-between;
   align-items: center;
   padding-top: 12px;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
 }
 
 .paper-date {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .pdf-link {
   padding: 4px 12px;
-  background: var(--primary-color);
+  background: var(--accent);
   color: white;
   border-radius: 4px;
   text-decoration: none;
