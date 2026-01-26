@@ -39,8 +39,9 @@ class Settings(BaseSettings):
     # OneDrive paths
     onedrive_base_folder: str = "PersonalAI"
 
-    # ChromaDB
+    # ChromaDB / Embeddings
     chroma_persist_directory: str = "./data/chroma"
+    embedding_provider: str = "auto"  # "auto", "openai", "google", or "huggingface"
 
     # Telegram (get API credentials from https://my.telegram.org)
     telegram_api_id: int = 0

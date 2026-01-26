@@ -1,23 +1,75 @@
 """Vector store operations using ChromaDB."""
 
 import contextlib
+import logging
 from pathlib import Path
 
 from ..config import get_settings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
+
+# Cache for embeddings instance
+_embeddings_instance = None
 
 
 def get_embeddings():
-    """Get the embeddings model."""
-    return OpenAIEmbeddings(
-        api_key=settings.openai_api_key,
-        model="text-embedding-3-small",
-    )
+    """Get the embeddings model based on configuration.
+
+    Priority:
+    1. If embedding_provider is explicitly set (not "auto"), use that
+    2. If "auto", try to use the same provider as the LLM
+    3. Fall back to HuggingFace (free, no API key needed)
+    """
+    global _embeddings_instance
+    if _embeddings_instance is not None:
+        return _embeddings_instance
+
+    provider = settings.embedding_provider
+
+    # Auto-detect based on LLM provider and available keys
+    if provider == "auto":
+        if settings.default_llm_provider == "openai" and settings.openai_api_key:
+            provider = "openai"
+        elif settings.default_llm_provider == "google" and settings.google_api_key:
+            provider = "google"
+        elif settings.openai_api_key:
+            provider = "openai"
+        elif settings.google_api_key:
+            provider = "google"
+        else:
+            provider = "huggingface"
+
+    logger.info(f"Using embedding provider: {provider}")
+
+    if provider == "openai":
+        if not settings.openai_api_key:
+            raise ValueError("OPENAI_API_KEY required for OpenAI embeddings")
+        from langchain_openai import OpenAIEmbeddings
+        _embeddings_instance = OpenAIEmbeddings(
+            api_key=settings.openai_api_key,
+            model="text-embedding-3-small",
+        )
+    elif provider == "google":
+        if not settings.google_api_key:
+            raise ValueError("GOOGLE_API_KEY required for Google embeddings")
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+        _embeddings_instance = GoogleGenerativeAIEmbeddings(
+            model="models/embedding-001",
+            google_api_key=settings.google_api_key,
+        )
+    elif provider == "huggingface":
+        from langchain_huggingface import HuggingFaceEmbeddings
+        _embeddings_instance = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+        )
+    else:
+        raise ValueError(f"Unknown embedding provider: {provider}")
+
+    return _embeddings_instance
 
 
 def get_vector_store() -> Chroma:
