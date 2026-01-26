@@ -10,6 +10,8 @@ function Notes() {
   const [loading, setLoading] = useState(true)
   const [showNewNote, setShowNewNote] = useState(false)
   const [newNoteName, setNewNoteName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -59,6 +61,9 @@ function Notes() {
 
     const filename = newNoteName.endsWith('.md') ? newNoteName : `${newNoteName}.md`
 
+    setCreating(true)
+    setError(null)
+
     try {
       const res = await fetch(`${API_BASE}/notes/create`, {
         method: 'POST',
@@ -75,9 +80,15 @@ function Notes() {
         setShowNewNote(false)
         setNewNoteName('')
         navigate(`/notes/${activeFolder}/${filename}`)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.detail || `Failed to create note (${res.status})`)
       }
-    } catch (error) {
-      console.error('Failed to create note:', error)
+    } catch (err) {
+      console.error('Failed to create note:', err)
+      setError('Network error - please try again')
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -118,7 +129,7 @@ function Notes() {
                 Today's Diary
               </button>
             )}
-            <button className="btn btn-primary" onClick={() => setShowNewNote(true)}>
+            <button className="btn btn-primary" onClick={() => { setShowNewNote(true); setError(null); }}>
               New Note
             </button>
           </div>
@@ -176,9 +187,21 @@ function Notes() {
         </div>
 
         {showNewNote && (
-          <div className="modal-overlay" onClick={() => setShowNewNote(false)}>
+          <div className="modal-overlay" onClick={() => !creating && setShowNewNote(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <h3>New Note</h3>
+              {error && (
+                <div style={{
+                  padding: '10px 12px',
+                  background: 'var(--error)',
+                  color: 'white',
+                  borderRadius: '6px',
+                  marginBottom: '16px',
+                  fontSize: '14px'
+                }}>
+                  {error}
+                </div>
+              )}
               <div className="form-group">
                 <label className="form-label">Note Name</label>
                 <input
@@ -187,16 +210,25 @@ function Notes() {
                   placeholder="my-note"
                   value={newNoteName}
                   onChange={(e) => setNewNoteName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && createNote()}
+                  onKeyDown={(e) => e.key === 'Enter' && !creating && createNote()}
+                  disabled={creating}
                   autoFocus
                 />
               </div>
               <div className="modal-actions">
-                <button className="btn btn-secondary" onClick={() => setShowNewNote(false)}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowNewNote(false)}
+                  disabled={creating}
+                >
                   Cancel
                 </button>
-                <button className="btn btn-primary" onClick={createNote}>
-                  Create
+                <button
+                  className="btn btn-primary"
+                  onClick={createNote}
+                  disabled={creating || !newNoteName.trim()}
+                >
+                  {creating ? 'Creating...' : 'Create'}
                 </button>
               </div>
             </div>
