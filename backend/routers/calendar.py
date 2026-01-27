@@ -1,11 +1,14 @@
 """Calendar endpoints - Outlook integration."""
 
+import logging
 from datetime import datetime, timedelta
 
 from ..auth import get_access_token_for_service
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from ..services.graph import GraphClient
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
 
@@ -53,6 +56,7 @@ async def list_calendars(client: GraphClient = Depends(get_graph_client)):
         ]
         return {"calendars": calendars}
     except Exception as e:
+        logger.exception("Failed to list calendars")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -72,6 +76,7 @@ async def get_today_events(client: GraphClient = Depends(get_graph_client)):
         events = _format_events(result.get("value", []))
         return {"date": start.strftime("%Y-%m-%d"), "events": events}
     except Exception as e:
+        logger.exception("Failed to get today's events")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -105,6 +110,7 @@ async def get_week_events(client: GraphClient = Depends(get_graph_client)):
             "total_events": len(events),
         }
     except Exception as e:
+        logger.exception("Failed to get week's events")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 

@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # Frontend
     frontend_url: str = "http://localhost:5173"
 
+    # Redis (for persistent token storage)
+    redis_url: str = ""  # e.g., redis://localhost:6379 or Railway Redis URL
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

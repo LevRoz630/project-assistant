@@ -1,5 +1,7 @@
 """Microsoft OAuth authentication using MSAL with multi-account support."""
 
+import json
+import logging
 import secrets
 
 import msal
@@ -7,9 +9,33 @@ from .config import get_settings
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 settings = get_settings()
+
+# Redis client (initialized lazily)
+_redis_client = None
+
+
+def _get_redis():
+    """Get Redis client, initializing if needed."""
+    global _redis_client
+    if _redis_client is None:
+        redis_url = getattr(settings, "redis_url", None)
+        if redis_url:
+            try:
+                import redis
+                _redis_client = redis.from_url(redis_url, decode_responses=True)
+                _redis_client.ping()  # Test connection
+                logger.info("Connected to Redis for token storage")
+            except Exception as e:
+                logger.warning(f"Redis connection failed, using in-memory storage: {e}")
+                _redis_client = False  # Mark as failed, don't retry
+        else:
+            _redis_client = False  # No Redis URL configured
+    return _redis_client if _redis_client else None
 
 # Account purposes
 ACCOUNT_PURPOSE_PRIMARY = "primary"  # All services (default)
@@ -37,9 +63,41 @@ SCOPES_BY_PURPOSE = {
     ],
 }
 
-# In-memory token cache (use Redis/database in production)
+# In-memory token cache (fallback when Redis unavailable)
 _token_cache: dict[str, dict[str, dict]] = {}  # {session_id: {purpose: {token_data, user_info}}}
 _state_cache: dict[str, dict] = {}  # {state: {purpose: str}}
+
+# Token expiry: 7 days in seconds
+TOKEN_EXPIRY = 86400 * 7
+
+
+def _get_session_data(session_id: str) -> dict | None:
+    """Get session data from Redis or memory."""
+    redis = _get_redis()
+    if redis:
+        data = redis.get(f"session:{session_id}")
+        if data:
+            return json.loads(data)
+        return None
+    return _token_cache.get(session_id)
+
+
+def _set_session_data(session_id: str, data: dict):
+    """Store session data in Redis or memory."""
+    redis = _get_redis()
+    if redis:
+        redis.setex(f"session:{session_id}", TOKEN_EXPIRY, json.dumps(data))
+    else:
+        _token_cache[session_id] = data
+
+
+def _delete_session_data(session_id: str):
+    """Delete session data from Redis or memory."""
+    redis = _get_redis()
+    if redis:
+        redis.delete(f"session:{session_id}")
+    elif session_id in _token_cache:
+        del _token_cache[session_id]
 
 
 def _get_msal_app() -> msal.ConfidentialClientApplication:
@@ -69,10 +127,9 @@ def _build_auth_url(state: str, purpose: str = ACCOUNT_PURPOSE_PRIMARY) -> str:
 
 def get_token_from_cache(session_id: str, purpose: str | None = None) -> dict | None:
     """Get access token from cache for a specific purpose."""
-    if session_id not in _token_cache:
+    session_data = _get_session_data(session_id)
+    if not session_data:
         return None
-
-    session_data = _token_cache[session_id]
 
     # If purpose specified, get that specific account
     if purpose and purpose in session_data:
@@ -103,10 +160,9 @@ def get_access_token_for_service(session_id: str, service: str) -> str | None:
 
     Services: 'email', 'calendar', 'notes', 'tasks'
     """
-    if session_id not in _token_cache:
+    session_data = _get_session_data(session_id)
+    if not session_data:
         return None
-
-    session_data = _token_cache[session_id]
 
     # Map services to purposes
     if service in ("email", "calendar"):
@@ -208,17 +264,20 @@ async def auth_callback(
     }
 
     # Use existing session or create new one
-    if existing_session and existing_session in _token_cache:
+    existing_data = _get_session_data(existing_session) if existing_session else None
+    if existing_session and existing_data:
         session_id = existing_session
+        session_data = existing_data
     else:
         session_id = secrets.token_urlsafe(32)
-        _token_cache[session_id] = {}
+        session_data = {}
 
     # Store token under the purpose key
-    _token_cache[session_id][purpose] = {
+    session_data[purpose] = {
         "token_data": result,
         "user_info": user_info,
     }
+    _set_session_data(session_id, session_data)
 
     # Redirect to frontend with session cookie
     response = RedirectResponse(url=settings.frontend_url)
@@ -242,21 +301,23 @@ async def logout(request: Request, response: Response, purpose: str | None = Non
         purpose: If provided, only log out this account type. Otherwise log out all.
     """
     session_id = request.cookies.get("session_id")
+    session_data = _get_session_data(session_id) if session_id else None
 
-    if session_id and session_id in _token_cache:
-        if purpose and purpose in _token_cache[session_id]:
+    if session_id and session_data:
+        if purpose and purpose in session_data:
             # Remove just this account
-            del _token_cache[session_id][purpose]
+            del session_data[purpose]
             # If no accounts left, delete session
-            if not _token_cache[session_id]:
-                del _token_cache[session_id]
+            if not session_data:
+                _delete_session_data(session_id)
                 response = RedirectResponse(url=settings.frontend_url)
                 response.delete_cookie("session_id")
                 return response
+            _set_session_data(session_id, session_data)
             return RedirectResponse(url=settings.frontend_url)
         else:
             # Remove all accounts
-            del _token_cache[session_id]
+            _delete_session_data(session_id)
 
     response = RedirectResponse(url=settings.frontend_url)
     response.delete_cookie("session_id")
@@ -272,10 +333,9 @@ async def get_current_user(request: Request):
     if not session_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    if session_id not in _token_cache or not _token_cache[session_id]:
+    session_data = _get_session_data(session_id)
+    if not session_data:
         raise HTTPException(status_code=401, detail="Session expired")
-
-    session_data = _token_cache[session_id]
 
     # Get primary user or first available
     for purpose in [ACCOUNT_PURPOSE_PRIMARY, ACCOUNT_PURPOSE_EMAIL, ACCOUNT_PURPOSE_STORAGE]:
@@ -298,10 +358,10 @@ async def get_accounts(request: Request):
     if not session_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    if session_id not in _token_cache:
+    session_data = _get_session_data(session_id)
+    if not session_data:
         raise HTTPException(status_code=401, detail="Session expired")
 
-    session_data = _token_cache[session_id]
     accounts = []
 
     purpose_labels = {
