@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/routers/test_chat.py -v --tb=short)",
+      "Bash(python3 -m pytest:*)",
+      "Bash(uv pip install:*)",
+      "Bash(uv venv:*)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(python:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run build:*)",
+      "Bash(npm install)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(source:*)",
+      "Bash(curl:*)",
+      "Bash(gh issue view:*)",
+      "Bash(python3:*)",
+      "Bash(find:*)",
+      "WebFetch(domain:api.semanticscholar.org)",
+      "Bash(git -C /home/leo/GitHub_Clones/project-assistant log --oneline -20)"
+    ]
+  }
+}
