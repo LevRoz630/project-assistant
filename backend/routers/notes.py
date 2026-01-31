@@ -9,12 +9,40 @@ from ..config import get_settings
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from ..services.graph import GraphClient
+from ..services.security import safe_error_message
 from ..services.vectors import delete_document, ingest_document
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 settings = get_settings()
+
+
+def _validate_path_component(value: str, field_name: str) -> str:
+    """Validate a path component (folder or filename) to prevent path traversal attacks."""
+    if not value:
+        raise HTTPException(status_code=400, detail=f"{field_name} cannot be empty")
+
+    # Reject path traversal attempts
+    if ".." in value:
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}: path traversal not allowed")
+
+    # Reject absolute paths
+    if value.startswith("/") or value.startswith("\\"):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}: absolute paths not allowed")
+
+    # Reject paths containing slashes (except for filename:path which FastAPI handles)
+    if "/" in value or "\\" in value:
+        # Allow forward slashes in filenames since FastAPI's :path converter handles nested paths
+        # But still reject backslashes and double slashes
+        if "\\" in value or "//" in value:
+            raise HTTPException(status_code=400, detail=f"Invalid {field_name}: invalid path characters")
+
+    # Reject null bytes
+    if "\x00" in value:
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}: null bytes not allowed")
+
+    return value
 
 
 def get_graph_client(request: Request) -> GraphClient:
@@ -74,12 +102,15 @@ async def list_folders(client: GraphClient = Depends(get_graph_client)):
         if "itemNotFound" in str(e):
             await _ensure_folder_structure(client)
             return {"folders": ["Diary", "Projects", "Study", "Inbox"]}
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(
+            status_code=500, detail=safe_error_message(e, "List folders")
+        ) from e
 
 
 @router.get("/list/{folder}")
 async def list_notes(folder: str, client: GraphClient = Depends(get_graph_client)):
     """List all notes in a folder."""
+    _validate_path_component(folder, "folder")
     try:
         folder_path = f"{settings.onedrive_base_folder}/{folder}"
         result = await client.list_folder(folder_path)
@@ -104,7 +135,9 @@ async def list_notes(folder: str, client: GraphClient = Depends(get_graph_client
     except Exception as e:
         if "itemNotFound" in str(e):
             return {"folder": folder, "notes": []}
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(
+            status_code=500, detail=safe_error_message(e, "List notes")
+        ) from e
 
 
 @router.get("/content/{folder}/{filename:path}")
@@ -114,6 +147,8 @@ async def get_note(
     client: GraphClient = Depends(get_graph_client),
 ):
     """Get the content of a note. Auto-creates if it doesn't exist."""
+    _validate_path_component(folder, "folder")
+    _validate_path_component(filename, "filename")
     note_path = get_note_path(folder, filename)
 
     try:
@@ -134,9 +169,13 @@ async def get_note(
                 return await _auto_create_note(client, folder, filename)
             except Exception as create_err:
                 logger.error(f"Failed to auto-create note {note_path}: {create_err}")
-                raise HTTPException(status_code=500, detail=f"Failed to create note: {create_err}") from create_err
+                raise HTTPException(
+                    status_code=500, detail=safe_error_message(create_err, "Create note")
+                ) from create_err
         logger.error(f"Failed to load note {note_path}: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(
+            status_code=500, detail=safe_error_message(e, "Load note")
+        ) from e
 
 
 async def _auto_create_note(client: GraphClient, folder: str, filename: str) -> dict:
@@ -190,6 +229,8 @@ async def create_note(
     client: GraphClient = Depends(get_graph_client),
 ):
     """Create a new note."""
+    _validate_path_component(note.folder, "folder")
+    _validate_path_component(note.filename, "filename")
     try:
         # Ensure folder structure exists
         await _ensure_folder_structure(client, note.folder)
@@ -228,7 +269,9 @@ async def create_note(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(
+            status_code=500, detail=safe_error_message(e, "Create note")
+        ) from e
 
 
 @router.put("/update/{folder}/{filename:path}")
@@ -239,6 +282,8 @@ async def update_note(
     client: GraphClient = Depends(get_graph_client),
 ):
     """Update an existing note."""
+    _validate_path_component(folder, "folder")
+    _validate_path_component(filename, "filename")
     try:
         note_path = get_note_path(folder, filename)
 
@@ -266,7 +311,9 @@ async def update_note(
     except Exception as e:
         if "itemNotFound" in str(e):
             raise HTTPException(status_code=404, detail="Note not found") from e
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(
+            status_code=500, detail=safe_error_message(e, "Update note")
+        ) from e
 
 
 @router.delete("/delete/{folder}/{filename:path}")
@@ -276,6 +323,8 @@ async def delete_note(
     client: GraphClient = Depends(get_graph_client),
 ):
     """Delete a note."""
+    _validate_path_component(folder, "folder")
+    _validate_path_component(filename, "filename")
     try:
         note_path = get_note_path(folder, filename)
 
@@ -286,7 +335,9 @@ async def delete_note(
     except Exception as e:
         if "itemNotFound" in str(e):
             raise HTTPException(status_code=404, detail="Note not found") from e
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(
+            status_code=500, detail=safe_error_message(e, "Delete note")
+        ) from e
 
 
 @router.post("/diary/today")
@@ -345,7 +396,9 @@ async def create_today_diary(
                 "indexed": indexed,
             }
 
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(
+            status_code=500, detail=safe_error_message(e, "Create diary entry")
+        ) from e
 
 
 async def _ensure_folder_structure(client: GraphClient, specific_folder: str | None = None):

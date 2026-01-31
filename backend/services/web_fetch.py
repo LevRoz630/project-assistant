@@ -1,6 +1,8 @@
 """Web page fetching and content extraction service."""
 
+import ipaddress
 import re
+import socket
 from urllib.parse import urlparse
 
 import httpx
@@ -16,13 +18,33 @@ FETCH_TIMEOUT = 15  # seconds
 MAX_CONTENT_LENGTH = 50000  # characters
 USER_AGENT = "Mozilla/5.0 (compatible; PersonalAIAssistant/1.0)"
 
-# Domains to block for security/privacy
-BLOCKED_DOMAINS = [
+# Domains/patterns to block for security/privacy
+BLOCKED_DOMAIN_PATTERNS = [
     "localhost",
-    "127.0.0.1",
-    "0.0.0.0",
     "internal",
     "intranet",
+    "corp",
+    "local",
+    ".internal",
+    ".local",
+    ".localhost",
+]
+
+# Private/reserved IP ranges that should never be fetched (SSRF protection)
+BLOCKED_IP_NETWORKS = [
+    ipaddress.ip_network("10.0.0.0/8"),        # Private Class A
+    ipaddress.ip_network("172.16.0.0/12"),     # Private Class B
+    ipaddress.ip_network("192.168.0.0/16"),    # Private Class C
+    ipaddress.ip_network("127.0.0.0/8"),       # Loopback
+    ipaddress.ip_network("169.254.0.0/16"),    # Link-local
+    ipaddress.ip_network("224.0.0.0/4"),       # Multicast
+    ipaddress.ip_network("240.0.0.0/4"),       # Reserved
+    ipaddress.ip_network("0.0.0.0/8"),         # Current network
+    ipaddress.ip_network("100.64.0.0/10"),     # Shared address space (CGN)
+    ipaddress.ip_network("198.18.0.0/15"),     # Benchmark testing
+    ipaddress.ip_network("::1/128"),           # IPv6 loopback
+    ipaddress.ip_network("fc00::/7"),          # IPv6 private
+    ipaddress.ip_network("fe80::/10"),         # IPv6 link-local
 ]
 
 
@@ -32,28 +54,95 @@ class WebFetchError(Exception):
     pass
 
 
-def _is_valid_url(url: str) -> bool:
-    """Check if URL is valid and safe to fetch."""
+def _is_ip_blocked(ip_str: str) -> bool:
+    """Check if an IP address falls within blocked ranges."""
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        for network in BLOCKED_IP_NETWORKS:
+            if ip in network:
+                return True
+        return False
+    except ValueError:
+        # Invalid IP address format
+        return True  # Block invalid IPs by default
+
+
+def _is_hostname_blocked(hostname: str) -> bool:
+    """Check if a hostname matches blocked patterns."""
+    hostname_lower = hostname.lower()
+
+    # Check against blocked patterns
+    for pattern in BLOCKED_DOMAIN_PATTERNS:
+        if pattern.startswith("."):
+            # Suffix match (e.g., ".local" matches "foo.local")
+            if hostname_lower.endswith(pattern) or hostname_lower == pattern[1:]:
+                return True
+        else:
+            # Substring match
+            if pattern in hostname_lower:
+                return True
+
+    # Block raw IP addresses that look like private IPs
+    try:
+        if _is_ip_blocked(hostname):
+            return True
+    except Exception:
+        pass
+
+    return False
+
+
+def _resolve_and_check_ip(hostname: str) -> bool:
+    """Resolve hostname to IP and verify it's not in blocked ranges."""
+    try:
+        # Resolve hostname to IP addresses
+        addr_info = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+
+        for family, _, _, _, sockaddr in addr_info:
+            ip_str = sockaddr[0]
+            if _is_ip_blocked(ip_str):
+                return False
+
+        return True
+    except socket.gaierror:
+        # DNS resolution failed - could be invalid hostname
+        return False
+    except Exception:
+        return False
+
+
+def _is_valid_url(url: str) -> tuple[bool, str]:
+    """Check if URL is valid and safe to fetch.
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
     try:
         parsed = urlparse(url)
 
         # Must have scheme and netloc
         if not parsed.scheme or not parsed.netloc:
-            return False
+            return False, "Invalid URL format"
 
         # Must be http or https
         if parsed.scheme not in ("http", "https"):
-            return False
+            return False, "Only HTTP and HTTPS URLs are allowed"
 
-        # Check blocked domains
+        # Check hostname against blocked patterns
         hostname = parsed.hostname or ""
-        for blocked in BLOCKED_DOMAINS:
-            if blocked in hostname.lower():
-                return False
+        if not hostname:
+            return False, "No hostname in URL"
 
-        return True
-    except Exception:
-        return False
+        if _is_hostname_blocked(hostname):
+            return False, "Blocked hostname"
+
+        # Resolve DNS and check resolved IP against blocked ranges (SSRF protection)
+        if not _resolve_and_check_ip(hostname):
+            return False, "URL resolves to blocked IP range"
+
+        return True, ""
+    except Exception as e:
+        return False, f"URL validation error: {e}"
 
 
 def _extract_text_from_html(html: str, max_length: int = MAX_CONTENT_LENGTH) -> str:
@@ -100,11 +189,12 @@ async def fetch_url(url: str) -> dict:
     Returns:
         Dict with 'url', 'title', 'content', and 'success' keys
     """
-    if not _is_valid_url(url):
+    is_valid, error_msg = _is_valid_url(url)
+    if not is_valid:
         return {
             "url": url,
             "title": "",
-            "content": "[Invalid or blocked URL]",
+            "content": f"[Blocked: {error_msg}]",
             "success": False,
         }
 

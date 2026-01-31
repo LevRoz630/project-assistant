@@ -1,7 +1,8 @@
 """Security logging and monitoring utilities."""
 
 import logging
-from datetime import datetime
+import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 # Configure security logger
@@ -46,7 +47,7 @@ def log_security_event(
     log_data = {
         "event_type": event_type,
         "session_id": truncated_session,
-        "timestamp": datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "details": details,
     }
 
@@ -55,3 +56,27 @@ def log_security_event(
     )
 
     return log_data
+
+
+def safe_error_message(error: Exception, operation: str, include_details: bool = False) -> str:
+    """
+    Generate a safe error message that doesn't leak internal details.
+
+    Args:
+        error: The exception that occurred
+        operation: A short description of the operation that failed
+        include_details: If True, include generic error type (not full message)
+
+    Returns:
+        A safe error message suitable for client responses
+    """
+    # Log the full error for debugging
+    error_id = str(uuid.uuid4())[:8]
+    security_logger.info(
+        f"ERROR_REF:{error_id} | operation={operation} | error={type(error).__name__}: {error}"
+    )
+
+    # Return a generic message with reference ID for support
+    if include_details:
+        return f"{operation} failed (ref: {error_id})"
+    return f"{operation} failed. Please try again or contact support (ref: {error_id})"

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import DOMPurify from 'dompurify'
 import './Email.css'
 import { API_BASE } from '../config'
 
@@ -204,9 +205,12 @@ function Email() {
               <div
                 className="email-body"
                 dangerouslySetInnerHTML={{
-                  __html: selectedEmail.body_type === 'html'
-                    ? selectedEmail.body
-                    : `<pre>${selectedEmail.body}</pre>`
+                  __html: DOMPurify.sanitize(
+                    selectedEmail.body_type === 'html'
+                      ? selectedEmail.body
+                      : `<pre>${selectedEmail.body}</pre>`,
+                    { USE_PROFILES: { html: true } }
+                  )
                 }}
               />
             </div>

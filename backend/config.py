@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     # App
     app_name: str = "Personal AI Assistant"
     debug: bool = False
-    secret_key: str = "change-me-in-production"
+    secret_key: str = ""  # Required in production - set via SECRET_KEY env var
 
     # Microsoft OAuth / Azure AD
     azure_client_id: str = ""
@@ -79,4 +79,24 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance."""
-    return Settings()
+    settings = Settings()
+
+    # Validate SECRET_KEY is set in production
+    if not settings.secret_key:
+        if settings.debug:
+            # Allow empty secret in debug mode with a warning
+            import warnings
+            settings.secret_key = "debug-only-insecure-key"
+            warnings.warn(
+                "SECRET_KEY not set - using insecure default. "
+                "Set SECRET_KEY environment variable for production.",
+                UserWarning,
+                stacklevel=2,
+            )
+        else:
+            raise ValueError(
+                "SECRET_KEY environment variable must be set in production. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+            )
+
+    return settings

@@ -30,8 +30,10 @@ settings = get_settings()
 
 # Simple in-memory rate limiter (use Redis for production with multiple workers)
 _request_counts: dict[str, list[datetime]] = defaultdict(list)
+_last_cleanup: datetime = datetime.utcnow()
 RATE_LIMIT_REQUESTS = 60  # requests per window
 RATE_LIMIT_WINDOW = timedelta(minutes=1)
+RATE_LIMIT_CLEANUP_INTERVAL = timedelta(minutes=5)  # Clean up empty entries periodically
 
 
 @asynccontextmanager
@@ -73,6 +75,8 @@ app.add_middleware(
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     """Simple rate limiting middleware."""
+    global _last_cleanup
+
     # Only rate limit chat endpoints which are most expensive
     if not request.url.path.startswith("/chat/"):
         return await call_next(request)
@@ -80,10 +84,21 @@ async def rate_limit_middleware(request: Request, call_next):
     session_id = request.cookies.get("session_id", "anonymous")
     now = datetime.utcnow()
 
-    # Clean old entries
+    # Clean old entries for this session
     _request_counts[session_id] = [
         t for t in _request_counts[session_id] if now - t < RATE_LIMIT_WINDOW
     ]
+
+    # Periodically clean up empty entries to prevent memory leak from random session IDs
+    if now - _last_cleanup > RATE_LIMIT_CLEANUP_INTERVAL:
+        _last_cleanup = now
+        # Remove sessions with no recent requests
+        empty_sessions = [
+            sid for sid, timestamps in _request_counts.items()
+            if not timestamps
+        ]
+        for sid in empty_sessions:
+            del _request_counts[sid]
 
     # Check limit
     if len(_request_counts[session_id]) >= RATE_LIMIT_REQUESTS:

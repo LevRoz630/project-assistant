@@ -273,6 +273,9 @@ class ChatMessage(BaseModel):
     content: str
 
 
+MAX_CHAT_HISTORY_LENGTH = 100  # Maximum number of messages in history
+
+
 class ChatRequest(BaseModel):
     """Request body for chat endpoint."""
 
@@ -292,6 +295,16 @@ class ChatRequest(BaseModel):
         if len(v) > 10000:
             raise ValueError("Message too long (max 10000 characters)")
         return v.strip()
+
+    @field_validator("history")
+    @classmethod
+    def validate_history(cls, v: list[ChatMessage] | None) -> list[ChatMessage] | None:
+        """Validate chat history length to prevent memory issues."""
+        if v is None:
+            return v
+        if len(v) > MAX_CHAT_HISTORY_LENGTH:
+            raise ValueError(f"Chat history too long (max {MAX_CHAT_HISTORY_LENGTH} messages)")
+        return v
 
 
 class ChatResponse(BaseModel):

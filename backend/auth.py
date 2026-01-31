@@ -3,6 +3,7 @@
 import json
 import logging
 import secrets
+import time
 
 import msal
 from .config import get_settings
@@ -65,7 +66,10 @@ SCOPES_BY_PURPOSE = {
 
 # In-memory token cache (fallback when Redis unavailable)
 _token_cache: dict[str, dict[str, dict]] = {}  # {session_id: {purpose: {token_data, user_info}}}
-_state_cache: dict[str, dict] = {}  # {state: {purpose: str}}
+_state_cache: dict[str, dict] = {}  # {state: {purpose: str, created_at: float, ip_hash: str}}
+
+# OAuth state expiry (10 minutes)
+STATE_EXPIRY_SECONDS = 600
 
 # Token expiry: 7 days in seconds
 TOKEN_EXPIRY = 86400 * 7
@@ -147,10 +151,38 @@ def get_token_from_cache(session_id: str, purpose: str | None = None) -> dict | 
     return None
 
 
+def _is_token_expired(token_data: dict) -> bool:
+    """Check if a token is expired or about to expire (within 5 min buffer)."""
+    expires_on = token_data.get("expires_in")  # MSAL returns expires_in (seconds from now)
+    if not expires_on:
+        # If no expiry info, assume token might be stale
+        return True
+
+    # MSAL also stores 'expires_on' as a timestamp in some cases
+    # Check both formats
+    if "expires_on" in token_data:
+        # expires_on is a Unix timestamp
+        expiry_time = token_data["expires_on"]
+        if isinstance(expiry_time, (int, float)):
+            # Add 5-minute buffer
+            return time.time() > (expiry_time - 300)
+
+    # For in-memory tokens, we need to track when they were created
+    # This is a simplification - in production, use MSAL's built-in token refresh
+    return False
+
+
 def get_access_token(session_id: str, purpose: str | None = None) -> str | None:
-    """Get access token string for a specific purpose."""
+    """Get access token string for a specific purpose.
+
+    Returns None if token is expired or not found.
+    """
     token_data = get_token_from_cache(session_id, purpose)
     if token_data:
+        # Check if token is expired
+        if _is_token_expired(token_data):
+            logger.warning(f"Token expired for session {session_id[:8]}...")
+            return None
         return token_data.get("access_token")
     return None
 
@@ -180,6 +212,29 @@ def get_access_token_for_service(session_id: str, service: str) -> str | None:
     return get_access_token(session_id)
 
 
+def _hash_client_ip(request: Request) -> str:
+    """Create a hash of the client IP for state binding."""
+    import hashlib
+    # Get client IP (consider X-Forwarded-For for proxied requests)
+    client_ip = request.client.host if request.client else "unknown"
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        client_ip = forwarded.split(",")[0].strip()
+    # Hash the IP so we don't store raw IPs
+    return hashlib.sha256(client_ip.encode()).hexdigest()[:16]
+
+
+def _cleanup_expired_states():
+    """Remove expired OAuth states to prevent memory buildup."""
+    now = time.time()
+    expired = [
+        state for state, data in _state_cache.items()
+        if now - data.get("created_at", 0) > STATE_EXPIRY_SECONDS
+    ]
+    for state in expired:
+        del _state_cache[state]
+
+
 @router.get("/login")
 async def login(request: Request, purpose: str = ACCOUNT_PURPOSE_PRIMARY):
     """Initiate Microsoft OAuth login flow.
@@ -190,8 +245,15 @@ async def login(request: Request, purpose: str = ACCOUNT_PURPOSE_PRIMARY):
     if purpose not in SCOPES_BY_PURPOSE:
         purpose = ACCOUNT_PURPOSE_PRIMARY
 
+    # Clean up expired states periodically
+    _cleanup_expired_states()
+
     state = secrets.token_urlsafe(32)
-    _state_cache[state] = {"purpose": purpose}
+    _state_cache[state] = {
+        "purpose": purpose,
+        "created_at": time.time(),
+        "ip_hash": _hash_client_ip(request),
+    }
 
     # Check if user already has a session (adding another account)
     session_id = request.cookies.get("session_id")
@@ -216,7 +278,7 @@ async def login_storage(request: Request):
 
 @router.get("/callback")
 async def auth_callback(
-    _request: Request,  # Required by FastAPI but unused
+    request: Request,
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
@@ -232,11 +294,28 @@ async def auth_callback(
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing code or state")
 
-    # Verify state
+    # Verify state exists
     if state not in _state_cache:
-        raise HTTPException(status_code=400, detail="Invalid state")
+        raise HTTPException(status_code=400, detail="Invalid or expired state")
 
-    state_data = _state_cache.pop(state)
+    state_data = _state_cache.get(state)
+
+    # Verify state hasn't expired
+    if time.time() - state_data.get("created_at", 0) > STATE_EXPIRY_SECONDS:
+        _state_cache.pop(state, None)
+        raise HTTPException(status_code=400, detail="OAuth state expired")
+
+    # Verify the callback is from the same client that initiated the flow (CSRF protection)
+    current_ip_hash = _hash_client_ip(request)
+    if state_data.get("ip_hash") and state_data["ip_hash"] != current_ip_hash:
+        logger.warning(
+            f"OAuth state IP mismatch: expected {state_data.get('ip_hash')}, got {current_ip_hash}"
+        )
+        _state_cache.pop(state, None)
+        raise HTTPException(status_code=400, detail="Invalid state - client mismatch")
+
+    # Remove state from cache (one-time use)
+    _state_cache.pop(state)
     purpose = state_data.get("purpose", ACCOUNT_PURPOSE_PRIMARY)
     existing_session = state_data.get("existing_session")
 
