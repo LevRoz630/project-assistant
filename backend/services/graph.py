@@ -277,6 +277,17 @@ class GraphClient:
 
         return await self._request("GET", "/me/messages", params=params)
 
+    async def list_flagged_emails(self, top: int = 20) -> dict:
+        """List flagged (important) email messages."""
+        params = {
+            "$filter": "flag/flagStatus eq 'flagged'",
+            "$top": str(top),
+            "$orderby": "receivedDateTime desc",
+            "$select": "id,subject,from,receivedDateTime,isRead,bodyPreview,flag",
+        }
+
+        return await self._request("GET", "/me/messages", params=params)
+
     # ==================== OneNote ====================
 
     async def list_notebooks(self) -> dict:

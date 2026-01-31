@@ -130,10 +130,12 @@ async def list_all_tasks(
 
 @router.get("/important")
 async def list_important_tasks(
+    request: Request,
     include_completed: bool = False,
+    include_flagged_emails: bool = True,
     client: GraphClient = Depends(get_graph_client),
 ):
-    """List all important (high priority) tasks from all lists."""
+    """List all important (high priority) tasks and flagged emails."""
     try:
         lists_result = await client.list_task_lists()
         important_tasks = []
@@ -148,6 +150,7 @@ async def list_important_tasks(
                     important_tasks.append(
                         {
                             "id": task["id"],
+                            "type": "task",
                             "list_id": list_id,
                             "list_name": list_name,
                             "title": task["title"],
@@ -159,10 +162,44 @@ async def list_important_tasks(
                         }
                     )
 
-        # Sort by due date
-        important_tasks.sort(key=lambda x: (x.get("due_date") or "9999", x.get("created") or ""))
+        # Fetch flagged emails if requested
+        flagged_emails = []
+        if include_flagged_emails:
+            session_id = request.cookies.get("session_id")
+            email_token = get_access_token_for_service(session_id, "email") if session_id else None
+            if email_token:
+                try:
+                    email_client = GraphClient(email_token)
+                    emails_result = await email_client.list_flagged_emails(top=20)
+                    for email in emails_result.get("value", []):
+                        from_info = email.get("from", {}).get("emailAddress", {})
+                        flagged_emails.append(
+                            {
+                                "id": email["id"],
+                                "type": "email",
+                                "title": email.get("subject", "(No subject)"),
+                                "body": email.get("bodyPreview", "")[:200],
+                                "from_name": from_info.get("name", "Unknown"),
+                                "from_email": from_info.get("address", ""),
+                                "created": email.get("receivedDateTime"),
+                                "is_read": email.get("isRead", False),
+                                "importance": "flagged",
+                            }
+                        )
+                except Exception:
+                    # Don't fail the whole request if email fetch fails
+                    pass
 
-        return {"tasks": important_tasks, "count": len(important_tasks)}
+        # Combine and sort by date
+        all_items = important_tasks + flagged_emails
+        all_items.sort(key=lambda x: (x.get("due_date") or x.get("created") or "9999"))
+
+        return {
+            "items": all_items,
+            "tasks": important_tasks,
+            "flagged_emails": flagged_emails,
+            "count": len(all_items),
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
