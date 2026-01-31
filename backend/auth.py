@@ -64,7 +64,7 @@ SCOPES_BY_PURPOSE = {
     ],
 }
 
-# In-memory token cache (fallback when Redis unavailable)
+# In-memory caches (fallback when Redis unavailable)
 _token_cache: dict[str, dict[str, dict]] = {}  # {session_id: {purpose: {token_data, user_info}}}
 _state_cache: dict[str, dict] = {}  # {state: {purpose: str, created_at: float, ip_hash: str}}
 
@@ -74,12 +74,16 @@ STATE_EXPIRY_SECONDS = 600
 # Token expiry: 7 days in seconds
 TOKEN_EXPIRY = 86400 * 7
 
+# Redis key prefixes
+REDIS_SESSION_PREFIX = "session:"
+REDIS_STATE_PREFIX = "oauth_state:"
+
 
 def _get_session_data(session_id: str) -> dict | None:
     """Get session data from Redis or memory."""
     redis = _get_redis()
     if redis:
-        data = redis.get(f"session:{session_id}")
+        data = redis.get(f"{REDIS_SESSION_PREFIX}{session_id}")
         if data:
             return json.loads(data)
         return None
@@ -90,7 +94,7 @@ def _set_session_data(session_id: str, data: dict):
     """Store session data in Redis or memory."""
     redis = _get_redis()
     if redis:
-        redis.setex(f"session:{session_id}", TOKEN_EXPIRY, json.dumps(data))
+        redis.setex(f"{REDIS_SESSION_PREFIX}{session_id}", TOKEN_EXPIRY, json.dumps(data))
     else:
         _token_cache[session_id] = data
 
@@ -99,9 +103,42 @@ def _delete_session_data(session_id: str):
     """Delete session data from Redis or memory."""
     redis = _get_redis()
     if redis:
-        redis.delete(f"session:{session_id}")
+        redis.delete(f"{REDIS_SESSION_PREFIX}{session_id}")
     elif session_id in _token_cache:
         del _token_cache[session_id]
+
+
+def _get_state_data(state: str) -> dict | None:
+    """Get OAuth state data from Redis or memory."""
+    redis = _get_redis()
+    if redis:
+        data = redis.get(f"{REDIS_STATE_PREFIX}{state}")
+        if data:
+            return json.loads(data)
+        return None
+    return _state_cache.get(state)
+
+
+def _set_state_data(state: str, data: dict):
+    """Store OAuth state data in Redis or memory.
+
+    Redis: Uses TTL for automatic expiry.
+    Memory: Requires manual cleanup via _cleanup_expired_states().
+    """
+    redis = _get_redis()
+    if redis:
+        redis.setex(f"{REDIS_STATE_PREFIX}{state}", STATE_EXPIRY_SECONDS, json.dumps(data))
+    else:
+        _state_cache[state] = data
+
+
+def _delete_state_data(state: str):
+    """Delete OAuth state data from Redis or memory."""
+    redis = _get_redis()
+    if redis:
+        redis.delete(f"{REDIS_STATE_PREFIX}{state}")
+    elif state in _state_cache:
+        del _state_cache[state]
 
 
 def _get_msal_app() -> msal.ConfidentialClientApplication:
@@ -225,7 +262,15 @@ def _hash_client_ip(request: Request) -> str:
 
 
 def _cleanup_expired_states():
-    """Remove expired OAuth states to prevent memory buildup."""
+    """Remove expired OAuth states from in-memory cache.
+
+    Note: Redis states auto-expire via TTL, so this only cleans the
+    in-memory fallback cache used when Redis is unavailable.
+    """
+    # Skip if using Redis (TTL handles expiry automatically)
+    if _get_redis():
+        return
+
     now = time.time()
     expired = [
         state for state, data in _state_cache.items()
@@ -245,11 +290,11 @@ async def login(request: Request, purpose: str = ACCOUNT_PURPOSE_PRIMARY):
     if purpose not in SCOPES_BY_PURPOSE:
         purpose = ACCOUNT_PURPOSE_PRIMARY
 
-    # Clean up expired states periodically
+    # Clean up expired states periodically (only for in-memory fallback)
     _cleanup_expired_states()
 
     state = secrets.token_urlsafe(32)
-    _state_cache[state] = {
+    state_data = {
         "purpose": purpose,
         "created_at": time.time(),
         "ip_hash": _hash_client_ip(request),
@@ -258,7 +303,10 @@ async def login(request: Request, purpose: str = ACCOUNT_PURPOSE_PRIMARY):
     # Check if user already has a session (adding another account)
     session_id = request.cookies.get("session_id")
     if session_id:
-        _state_cache[state]["existing_session"] = session_id
+        state_data["existing_session"] = session_id
+
+    # Store state in Redis (with TTL) or in-memory fallback
+    _set_state_data(state, state_data)
 
     auth_url = _build_auth_url(state, purpose)
     return RedirectResponse(url=auth_url)
@@ -294,15 +342,14 @@ async def auth_callback(
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing code or state")
 
-    # Verify state exists
-    if state not in _state_cache:
+    # Verify state exists (in Redis or memory)
+    state_data = _get_state_data(state)
+    if not state_data:
         raise HTTPException(status_code=400, detail="Invalid or expired state")
 
-    state_data = _state_cache.get(state)
-
-    # Verify state hasn't expired
+    # Verify state hasn't expired (belt-and-suspenders check, Redis TTL should handle this)
     if time.time() - state_data.get("created_at", 0) > STATE_EXPIRY_SECONDS:
-        _state_cache.pop(state, None)
+        _delete_state_data(state)
         raise HTTPException(status_code=400, detail="OAuth state expired")
 
     # Verify the callback is from the same client that initiated the flow (CSRF protection)
@@ -311,11 +358,11 @@ async def auth_callback(
         logger.warning(
             f"OAuth state IP mismatch: expected {state_data.get('ip_hash')}, got {current_ip_hash}"
         )
-        _state_cache.pop(state, None)
+        _delete_state_data(state)
         raise HTTPException(status_code=400, detail="Invalid state - client mismatch")
 
     # Remove state from cache (one-time use)
-    _state_cache.pop(state)
+    _delete_state_data(state)
     purpose = state_data.get("purpose", ACCOUNT_PURPOSE_PRIMARY)
     existing_session = state_data.get("existing_session")
 
