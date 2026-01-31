@@ -1,7 +1,7 @@
 .notes-layout {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
   height: calc(100vh - 180px);
 }
 
@@ -9,38 +9,43 @@
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 8px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .folder-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
+  padding: 10px 16px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
   color: var(--text-secondary);
   text-align: left;
-  transition: all 0.2s;
+  transition: all var(--transition-normal);
 }
 
 .folder-item:hover {
-  background: var(--bg-secondary);
+  background: var(--glass-bg-solid);
+  border-color: var(--glass-border-hover);
   color: var(--text-primary);
 }
 
 .folder-item.active {
-  background: var(--accent);
-  color: white;
+  background: var(--accent-glass);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: var(--accent);
+  box-shadow: var(--glow-accent);
 }
 
 .notes-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   overflow-y: auto;
 }
 
@@ -48,21 +53,26 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px 16px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  padding: 14px var(--space-4);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-normal);
+  box-shadow: var(--glass-shadow);
 }
 
 .note-item:hover {
-  border-color: var(--accent);
-  transform: translateY(-1px);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--glass-shadow), 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
 .note-icon {
-  color: var(--text-secondary);
+  color: var(--accent);
+  opacity: 0.8;
 }
 
 .note-info {
@@ -71,11 +81,12 @@
 
 .note-name {
   font-weight: 500;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
+  font-size: var(--text-lg);
 }
 
 .note-meta {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
 }
 
@@ -83,40 +94,80 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .modal {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 24px;
+  background: var(--glass-bg-solid);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  padding: var(--space-6);
   width: 100%;
   max-width: 400px;
+  box-shadow: var(--glass-shadow), 0 0 60px rgba(0, 0, 0, 0.3);
+  animation: scaleIn 0.25s ease;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .modal h3 {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
+  font-size: var(--text-xl);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 20px;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--glass-border);
 }
 
 @media (max-width: 768px) {
   .folders-list {
-    gap: 6px;
+    gap: var(--space-2);
   }
 
   .folder-item {
-    padding: 8px 12px;
-    font-size: 0.9rem;
+    padding: 8px 14px;
+    font-size: var(--text-base);
+    border-radius: 16px;
+  }
+
+  .note-item {
+    padding: var(--space-3);
+    border-radius: 12px;
+  }
+
+  .modal {
+    margin: var(--space-4);
+    max-width: calc(100vw - 32px);
+    padding: var(--space-5);
+    border-radius: 16px;
   }
 }
