@@ -46,6 +46,7 @@ ACCOUNT_PURPOSE_STORAGE = "storage"  # OneDrive + To Do only
 # Scopes by purpose
 SCOPES_BY_PURPOSE = {
     ACCOUNT_PURPOSE_PRIMARY: [
+        "offline_access",  # Required for refresh tokens
         "User.Read",
         "Files.ReadWrite.All",
         "Tasks.ReadWrite",
@@ -53,11 +54,13 @@ SCOPES_BY_PURPOSE = {
         "Mail.Read",
     ],
     ACCOUNT_PURPOSE_EMAIL: [
+        "offline_access",
         "User.Read",
         "Calendars.ReadWrite",
         "Mail.Read",
     ],
     ACCOUNT_PURPOSE_STORAGE: [
+        "offline_access",
         "User.Read",
         "Files.ReadWrite.All",
         "Tasks.ReadWrite",
@@ -77,6 +80,10 @@ TOKEN_EXPIRY = 86400 * 7
 # Redis key prefixes
 REDIS_SESSION_PREFIX = "session:"
 REDIS_STATE_PREFIX = "oauth_state:"
+REDIS_MSAL_CACHE_PREFIX = "msal_cache:"
+
+# MSAL cache expiry: 30 days (refresh tokens last longer than access tokens)
+MSAL_CACHE_EXPIRY = 86400 * 30
 
 
 def _get_session_data(session_id: str) -> dict | None:
@@ -141,6 +148,51 @@ def _delete_state_data(state: str):
         del _state_cache[state]
 
 
+def _get_msal_cache(session_id: str, purpose: str) -> msal.SerializableTokenCache:
+    """Get MSAL token cache from Redis or create new one."""
+    cache = msal.SerializableTokenCache()
+    redis = _get_redis()
+    if redis:
+        cache_key = f"{REDIS_MSAL_CACHE_PREFIX}{session_id}:{purpose}"
+        cache_data = redis.get(cache_key)
+        if cache_data:
+            cache.deserialize(cache_data)
+    return cache
+
+
+def _save_msal_cache(session_id: str, purpose: str, cache: msal.SerializableTokenCache):
+    """Save MSAL token cache to Redis if changed."""
+    if cache.has_state_changed:
+        redis = _get_redis()
+        if redis:
+            cache_key = f"{REDIS_MSAL_CACHE_PREFIX}{session_id}:{purpose}"
+            redis.setex(cache_key, MSAL_CACHE_EXPIRY, cache.serialize())
+
+
+def _delete_msal_cache(session_id: str, purpose: str):
+    """Delete MSAL token cache from Redis."""
+    redis = _get_redis()
+    if redis:
+        cache_key = f"{REDIS_MSAL_CACHE_PREFIX}{session_id}:{purpose}"
+        redis.delete(cache_key)
+
+
+def _get_msal_app_with_cache(
+    session_id: str, purpose: str
+) -> tuple[msal.ConfidentialClientApplication, msal.SerializableTokenCache]:
+    """Create MSAL app with session-specific token cache for refresh support."""
+    cache = _get_msal_cache(session_id, purpose)
+    authority = f"https://login.microsoftonline.com/{settings.azure_tenant_id}"
+
+    app = msal.ConfidentialClientApplication(
+        client_id=settings.azure_client_id,
+        client_credential=settings.azure_client_secret,
+        authority=authority,
+        token_cache=cache,
+    )
+    return app, cache
+
+
 def _get_msal_app() -> msal.ConfidentialClientApplication:
     """Create MSAL confidential client application."""
     authority = f"https://login.microsoftonline.com/{settings.azure_tenant_id}"
@@ -189,24 +241,51 @@ def get_token_from_cache(session_id: str, purpose: str | None = None) -> dict | 
 
 
 def _is_token_expired(token_data: dict) -> bool:
-    """Check if a token is expired or about to expire (within 5 min buffer)."""
-    expires_on = token_data.get("expires_in")  # MSAL returns expires_in (seconds from now)
+    """Check if a token is expired or about to expire (5 min buffer)."""
+    expires_on = token_data.get("expires_on")
     if not expires_on:
-        # If no expiry info, assume token might be stale
+        # No expiry info - assume expired to force refresh/re-auth
         return True
+    # Check with 5-minute buffer
+    return time.time() > (expires_on - 300)
 
-    # MSAL also stores 'expires_on' as a timestamp in some cases
-    # Check both formats
-    if "expires_on" in token_data:
-        # expires_on is a Unix timestamp
-        expiry_time = token_data["expires_on"]
-        if isinstance(expiry_time, (int, float)):
-            # Add 5-minute buffer
-            return time.time() > (expiry_time - 300)
 
-    # For in-memory tokens, we need to track when they were created
-    # This is a simplification - in production, use MSAL's built-in token refresh
-    return False
+def _try_refresh_token(session_id: str, purpose: str) -> dict | None:
+    """Attempt to refresh an expired token using MSAL.
+
+    Returns new token_data if successful, None if refresh failed.
+    """
+    app, cache = _get_msal_app_with_cache(session_id, purpose)
+    scopes = SCOPES_BY_PURPOSE.get(purpose, SCOPES_BY_PURPOSE[ACCOUNT_PURPOSE_PRIMARY])
+
+    accounts = app.get_accounts()
+    if not accounts:
+        logger.warning(f"No accounts in MSAL cache for refresh: {session_id[:8]}...")
+        return None
+
+    # Try silent acquisition (uses refresh token automatically)
+    result = app.acquire_token_silent(scopes, account=accounts[0])
+
+    if result and "access_token" in result:
+        # Calculate absolute expiry time
+        if "expires_in" in result and "expires_on" not in result:
+            result["expires_on"] = time.time() + result["expires_in"]
+
+        # Save updated MSAL cache
+        _save_msal_cache(session_id, purpose, cache)
+
+        # Update session data with new token
+        session_data = _get_session_data(session_id)
+        if session_data and purpose in session_data:
+            session_data[purpose]["token_data"] = result
+            _set_session_data(session_id, session_data)
+
+        logger.info(f"Successfully refreshed token for session {session_id[:8]}...")
+        return result
+
+    error_desc = result.get("error_description", "Unknown error") if result else "No result"
+    logger.warning(f"Token refresh failed for session {session_id[:8]}...: {error_desc}")
+    return None
 
 
 def get_access_token(session_id: str, purpose: str | None = None) -> str | None:
@@ -228,25 +307,40 @@ def get_access_token_for_service(session_id: str, service: str) -> str | None:
     """Get the appropriate access token for a service.
 
     Services: 'email', 'calendar', 'notes', 'tasks'
+    Attempts to refresh expired tokens automatically.
+    Returns None if token unavailable and refresh failed.
     """
     session_data = _get_session_data(session_id)
     if not session_data:
         return None
 
-    # Map services to purposes
+    # Map services to account purposes (in priority order)
     if service in ("email", "calendar"):
-        # Prefer email account, fall back to primary
-        for purpose in [ACCOUNT_PURPOSE_EMAIL, ACCOUNT_PURPOSE_PRIMARY]:
-            if purpose in session_data:
-                return session_data[purpose].get("token_data", {}).get("access_token")
+        purposes = [ACCOUNT_PURPOSE_EMAIL, ACCOUNT_PURPOSE_PRIMARY]
     elif service in ("notes", "tasks"):
-        # Prefer storage account, fall back to primary
-        for purpose in [ACCOUNT_PURPOSE_STORAGE, ACCOUNT_PURPOSE_PRIMARY]:
-            if purpose in session_data:
-                return session_data[purpose].get("token_data", {}).get("access_token")
+        purposes = [ACCOUNT_PURPOSE_STORAGE, ACCOUNT_PURPOSE_PRIMARY]
+    else:
+        purposes = [ACCOUNT_PURPOSE_PRIMARY]
 
-    # Fall back to any available token
-    return get_access_token(session_id)
+    for purpose in purposes:
+        if purpose in session_data:
+            token_data = session_data[purpose].get("token_data", {})
+
+            if not token_data:
+                continue
+
+            # Check if token is still valid
+            if not _is_token_expired(token_data):
+                return token_data.get("access_token")
+
+            # Token expired - try to refresh
+            logger.info(f"Token expired for {purpose}, attempting refresh...")
+            new_token_data = _try_refresh_token(session_id, purpose)
+            if new_token_data:
+                return new_token_data.get("access_token")
+
+    # All tokens expired and refresh failed
+    return None
 
 
 def _hash_client_ip(request: Request) -> str:
@@ -366,8 +460,17 @@ async def auth_callback(
     purpose = state_data.get("purpose", ACCOUNT_PURPOSE_PRIMARY)
     existing_session = state_data.get("existing_session")
 
-    # Exchange code for token
-    app = _get_msal_app()
+    # Determine session ID first (needed for MSAL cache)
+    existing_data = _get_session_data(existing_session) if existing_session else None
+    if existing_session and existing_data:
+        session_id = existing_session
+        session_data = existing_data
+    else:
+        session_id = secrets.token_urlsafe(32)
+        session_data = {}
+
+    # Exchange code for token using MSAL with cache (enables future token refresh)
+    app, cache = _get_msal_app_with_cache(session_id, purpose)
     scopes = SCOPES_BY_PURPOSE.get(purpose, SCOPES_BY_PURPOSE[ACCOUNT_PURPOSE_PRIMARY])
 
     result = app.acquire_token_by_authorization_code(
@@ -382,21 +485,20 @@ async def auth_callback(
             detail=f"Token error: {result.get('error_description', result.get('error'))}",
         )
 
+    # Save MSAL cache for future token refresh
+    _save_msal_cache(session_id, purpose, cache)
+
+    # Calculate absolute expiry time if not present
+    # MSAL returns expires_in (seconds from now), we need expires_on (Unix timestamp)
+    if "expires_in" in result and "expires_on" not in result:
+        result["expires_on"] = time.time() + result["expires_in"]
+
     # Extract user info
     claims = result.get("id_token_claims", {})
     user_info = {
         "name": claims.get("name", "Unknown"),
         "email": claims.get("preferred_username", claims.get("email", "Unknown")),
     }
-
-    # Use existing session or create new one
-    existing_data = _get_session_data(existing_session) if existing_session else None
-    if existing_session and existing_data:
-        session_id = existing_session
-        session_data = existing_data
-    else:
-        session_id = secrets.token_urlsafe(32)
-        session_data = {}
 
     # Store token under the purpose key
     session_data[purpose] = {
@@ -431,9 +533,11 @@ async def logout(request: Request, response: Response, purpose: str | None = Non
 
     if session_id and session_data:
         if purpose and purpose in session_data:
-            # Remove just this account
+            # Remove just this account and its MSAL cache
             del session_data[purpose]
-            # If no accounts left, delete session
+            _delete_msal_cache(session_id, purpose)
+
+            # If no accounts left, delete entire session
             if not session_data:
                 _delete_session_data(session_id)
                 response = RedirectResponse(url=settings.frontend_url)
@@ -442,8 +546,10 @@ async def logout(request: Request, response: Response, purpose: str | None = Non
             _set_session_data(session_id, session_data)
             return RedirectResponse(url=settings.frontend_url)
         else:
-            # Remove all accounts
+            # Remove all accounts and their MSAL caches
             _delete_session_data(session_id)
+            for p in [ACCOUNT_PURPOSE_PRIMARY, ACCOUNT_PURPOSE_EMAIL, ACCOUNT_PURPOSE_STORAGE]:
+                _delete_msal_cache(session_id, p)
 
     response = RedirectResponse(url=settings.frontend_url)
     response.delete_cookie("session_id")
