@@ -45,8 +45,8 @@ ACCOUNT_PURPOSE_STORAGE = "storage"  # OneDrive + To Do only
 
 # Scopes by purpose
 SCOPES_BY_PURPOSE = {
+    # Note: MSAL automatically adds offline_access, openid, profile scopes
     ACCOUNT_PURPOSE_PRIMARY: [
-        "offline_access",  # Required for refresh tokens
         "User.Read",
         "Files.ReadWrite.All",
         "Tasks.ReadWrite",
@@ -54,13 +54,11 @@ SCOPES_BY_PURPOSE = {
         "Mail.Read",
     ],
     ACCOUNT_PURPOSE_EMAIL: [
-        "offline_access",
         "User.Read",
         "Calendars.ReadWrite",
         "Mail.Read",
     ],
     ACCOUNT_PURPOSE_STORAGE: [
-        "offline_access",
         "User.Read",
         "Files.ReadWrite.All",
         "Tasks.ReadWrite",
