@@ -172,10 +172,12 @@ function Email() {
                 className={`email-item ${!email.is_read ? 'unread' : ''} ${selectedEmail?.id === email.id ? 'selected' : ''}`}
                 onClick={() => loadEmail(email.id)}
               >
-                <div className="email-sender">{email.from_name}</div>
-                <div className="email-subject">{email.subject}</div>
+                <div className="email-sender">
+                  <span>{email.from_name}</span>
+                  <span className="email-date">{formatDate(email.received)}</span>
+                </div>
+                <div className="email-subject">{email.subject || '(No subject)'}</div>
                 <div className="email-preview">{email.preview}</div>
-                <div className="email-date">{formatDate(email.received)}</div>
               </div>
             ))
           )}
