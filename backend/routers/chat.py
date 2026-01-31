@@ -43,8 +43,8 @@ def _parse_actions(response_text: str) -> tuple[str, list[dict]]:
         try:
             action_data = json.loads(match.strip())
             actions.append(action_data)
-        except json.JSONDecodeError:
-            pass  # Invalid JSON, skip
+        except json.JSONDecodeError as e:
+            logger.debug(f"Skipping invalid ACTION JSON: {e}")
 
     # Remove ACTION blocks from response for cleaner display
     cleaned_response = re.sub(action_pattern, '', response_text, flags=re.DOTALL)
@@ -634,24 +634,30 @@ async def stream_message(request: Request, chat_request: ChatRequest):
 
     async def generate():
         """Generate streaming response."""
-        # First, send metadata
-        yield f"data: {json.dumps({'type': 'meta', 'sources': sources})}\n\n"
+        try:
+            # First, send metadata
+            yield f"data: {json.dumps({'type': 'meta', 'sources': sources})}\n\n"
 
-        # Stream the response
-        async for chunk in generate_response_stream(
-            user_input=chat_request.message,
-            context=context,
-            tasks_context=tasks_context,
-            calendar_context=calendar_context,
-            email_context=email_context,
-            chat_history=history,
-            current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
-            role=role,
-        ):
-            yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
+            # Stream the response
+            async for chunk in generate_response_stream(
+                user_input=chat_request.message,
+                context=context,
+                tasks_context=tasks_context,
+                calendar_context=calendar_context,
+                email_context=email_context,
+                chat_history=history,
+                current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                role=role,
+            ):
+                yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
 
-        # Signal completion
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            # Signal completion
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        except Exception as e:
+            logger.exception("Error during response streaming")
+            # Always send done message so client doesn't hang
+            yield f"data: {json.dumps({'type': 'error', 'error': 'Stream interrupted'})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     return StreamingResponse(
         generate(),
@@ -781,8 +787,9 @@ async def save_conversation_history(request: Request):
     except Exception:
         try:
             await client.create_folder(settings.onedrive_base_folder, "_system")
-        except Exception:
-            pass  # Folder might already exist
+        except Exception as e:
+            # Folder might already exist, or creation failed - log but continue
+            logger.debug(f"Could not create _system folder (may already exist): {e}")
 
     file_path = f"{settings.onedrive_base_folder}/{HISTORY_FILE_PATH}"
     content = json.dumps({"conversations": conversations}, indent=2)

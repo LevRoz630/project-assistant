@@ -178,6 +178,16 @@ async def get_note(
         ) from e
 
 
+def _escape_yaml_string(value: str) -> str:
+    """Escape a string for safe inclusion in YAML frontmatter."""
+    # If the value contains special YAML characters, quote it
+    if any(c in value for c in [':', '#', '{', '}', '[', ']', ',', '&', '*', '!', '|', '>', "'", '"', '%', '@', '`', '\n']):
+        # Escape any existing double quotes and wrap in double quotes
+        escaped = value.replace('\\', '\\\\').replace('"', '\\"')
+        return f'"{escaped}"'
+    return value
+
+
 async def _auto_create_note(client: GraphClient, folder: str, filename: str) -> dict:
     """Auto-create a note with date metadata."""
     today = datetime.now()
@@ -185,10 +195,14 @@ async def _auto_create_note(client: GraphClient, folder: str, filename: str) -> 
     if not filename.endswith(".md"):
         filename = f"{filename}.md"
 
+    # Escape user input for YAML safety
+    safe_title = _escape_yaml_string(note_title)
+    safe_folder = _escape_yaml_string(folder)
+
     template = f"""---
-title: {note_title}
+title: {safe_title}
 created: {today.strftime("%Y-%m-%d %H:%M")}
-folder: {folder}
+folder: {safe_folder}
 ---
 
 # {note_title}

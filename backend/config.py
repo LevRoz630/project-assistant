@@ -57,14 +57,6 @@ class Settings(BaseSettings):
     enable_web_search: bool = True  # Enable AI to search the web
     enable_url_fetch: bool = True  # Enable AI to fetch and read webpage content
 
-    # ArXiv Digest
-    arxiv_categories: list[str] = ["cs.AI", "cs.CL", "cs.LG", "q-fin.ST", "stat.ML"]
-    arxiv_interests: str = "AI agents, LLMs, NLP, quantitative finance, ML for trading"
-    arxiv_schedule_hour: int = 6  # UTC hour to run daily (6 AM UTC)
-    arxiv_max_papers: int = 50  # Max papers to fetch per run
-    arxiv_top_n: int = 10  # Top N papers to include in digest
-    arxiv_llm_provider: str = "anthropic"  # "anthropic", "openai", or "google"
-
     # Frontend
     frontend_url: str = "http://localhost:5173"
 

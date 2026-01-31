@@ -13,7 +13,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from .routers.actions import router as actions_router
-from .routers.arxiv import router as arxiv_router
 from .routers.calendar import router as calendar_router
 from .routers.chat import router as chat_router
 from .routers.email import router as email_router
@@ -23,7 +22,6 @@ from .routers.onenote import router as onenote_router
 from .routers.sync import router as sync_router
 from .routers.tasks import router as tasks_router
 from .routers.telegram import router as telegram_router
-from .services.arxiv import get_arxiv_scheduler
 from .services.security import SecurityEventType, log_security_event
 
 settings = get_settings()
@@ -42,15 +40,10 @@ async def lifespan(_app: FastAPI):  # Required by FastAPI lifespan protocol
     # Startup
     print(f"Starting {settings.app_name}...")
 
-    # Start ArXiv digest scheduler (runs daily)
-    arxiv_scheduler = get_arxiv_scheduler()
-    arxiv_scheduler.start()
-
     yield
 
     # Shutdown
     print("Shutting down...")
-    arxiv_scheduler.stop()
 
 
 app = FastAPI(
@@ -189,7 +182,6 @@ app.include_router(telegram_router)
 app.include_router(github_router)
 app.include_router(sync_router)
 app.include_router(actions_router)
-app.include_router(arxiv_router)
 
 
 # Serve frontend static files in production

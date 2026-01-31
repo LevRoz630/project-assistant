@@ -10,7 +10,11 @@ from pydantic import BaseModel
 from ..services.actions import (
     ActionStatus,
     ActionType,
+    EmailDraftAction,
+    EventAction,
+    NoteAction,
     ProposedAction,
+    TaskAction,
     get_action_store,
 )
 from ..services.graph import GraphClient
@@ -95,6 +99,23 @@ class CreateActionRequest(BaseModel):
     data: dict
     reason: str
 
+    def validate_data(self) -> dict:
+        """Validate data against the appropriate schema for the action type."""
+        schema_map = {
+            ActionType.CREATE_TASK: TaskAction,
+            ActionType.CREATE_EVENT: EventAction,
+            ActionType.CREATE_NOTE: NoteAction,
+            ActionType.EDIT_NOTE: NoteAction,
+            ActionType.DRAFT_EMAIL: EmailDraftAction,
+        }
+
+        schema = schema_map.get(self.type)
+        if schema:
+            # This will raise ValidationError if data doesn't match schema
+            validated = schema(**self.data)
+            return validated.model_dump()
+        return self.data
+
 
 class ActionResponse(BaseModel):
     """Response for action operations."""
@@ -133,6 +154,10 @@ async def get_pending_actions(request: Request):
         await _sync_actions_from_cloud(token)
 
     store = get_action_store()
+
+    # Clean up old non-pending actions to prevent memory buildup
+    store.clear_old(hours=48)
+
     actions = store.list_pending()
 
     return {
@@ -180,12 +205,18 @@ async def create_action(request: Request, action_request: CreateActionRequest):
     if not session_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
+    # Validate the action data against the appropriate schema
+    try:
+        validated_data = action_request.validate_data()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid action data: {e}") from e
+
     token = get_access_token(session_id)
     store = get_action_store()
 
     action = store.create(
         action_type=action_request.type,
-        data=action_request.data,
+        data=validated_data,
         reason=action_request.reason,
     )
 

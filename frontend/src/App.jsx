@@ -7,8 +7,8 @@ import Tasks from './components/Tasks'
 import Calendar from './components/Calendar'
 import Email from './components/Email'
 import Actions from './components/Actions'
-import ArxivDigest from './components/ArxivDigest'
 import Accounts from './components/Accounts'
+import ErrorBoundary from './components/ErrorBoundary'
 import { API_BASE } from './config'
 
 function App() {
@@ -128,9 +128,6 @@ function App() {
             <NavLink to="/email" onClick={() => setMobileMenuOpen(false)}>
               <EmailIcon /> Email
             </NavLink>
-            <NavLink to="/arxiv" onClick={() => setMobileMenuOpen(false)}>
-              <ArxivIcon /> ArXiv
-            </NavLink>
             <div className="mobile-menu-divider"></div>
             <NavLink to="/actions" onClick={() => setMobileMenuOpen(false)}>
               <ActionsIcon /> Actions
@@ -172,10 +169,6 @@ function App() {
             <EmailIcon />
             Email
           </NavLink>
-          <NavLink to="/arxiv" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <ArxivIcon />
-            ArXiv
-          </NavLink>
 
           <div className="nav-divider"></div>
 
@@ -213,17 +206,18 @@ function App() {
       </aside>
 
       <main className="main-content">
-        <Routes>
-          <Route path="/" element={<Chat />} />
-          <Route path="/notes" element={<Notes />} />
-          <Route path="/notes/:folder/:filename" element={<NoteEditor />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/email" element={<Email />} />
-          <Route path="/arxiv" element={<ArxivDigest />} />
-          <Route path="/actions" element={<Actions />} />
-          <Route path="/accounts" element={<Accounts accounts={accounts} onRefresh={loadAccounts} />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<Chat />} />
+            <Route path="/notes" element={<Notes />} />
+            <Route path="/notes/:folder/:filename" element={<NoteEditor />} />
+            <Route path="/tasks" element={<Tasks />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/email" element={<Email />} />
+            <Route path="/actions" element={<Actions />} />
+            <Route path="/accounts" element={<Accounts accounts={accounts} onRefresh={loadAccounts} />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
     </div>
   )
@@ -286,18 +280,6 @@ function EmailIcon() {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
       <polyline points="22,6 12,13 2,6"/>
-    </svg>
-  )
-}
-
-function ArxivIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-      <line x1="8" y1="7" x2="16" y2="7"/>
-      <line x1="8" y1="11" x2="16" y2="11"/>
-      <line x1="8" y1="15" x2="12" y2="15"/>
     </svg>
   )
 }
