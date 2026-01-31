@@ -12,6 +12,7 @@ class ActionType(str, Enum):
     """Types of actions the AI can propose."""
 
     CREATE_TASK = "create_task"
+    UPDATE_TASK = "update_task"
     CREATE_EVENT = "create_event"
     CREATE_NOTE = "create_note"
     EDIT_NOTE = "edit_note"
@@ -36,6 +37,18 @@ class TaskAction(BaseModel):
     due_date: str | None = None
     list_id: str | None = None
     importance: str = "normal"
+
+
+class TaskUpdateAction(BaseModel):
+    """Data for updating an existing task."""
+
+    task_id: str
+    list_id: str
+    title: str | None = None
+    body: str | None = None
+    due_date: str | None = None
+    status: str | None = None  # "notStarted", "inProgress", "completed"
+    importance: str | None = None  # "low", "normal", "high"
 
 
 class EventAction(BaseModel):
@@ -186,6 +199,21 @@ def format_action_for_chat(action: ProposedAction) -> str:
         if data.get("due_date"):
             lines.append(f"- Due: {data['due_date']}")
         if data.get("importance") != "normal":
+            lines.append(f"- Priority: {data['importance']}")
+
+    elif action.type == ActionType.UPDATE_TASK:
+        data = action.data
+        lines.append("\n**Task Update:**")
+        lines.append(f"- Task ID: {data.get('task_id')}")
+        if data.get("title"):
+            lines.append(f"- New Title: {data['title']}")
+        if data.get("body"):
+            lines.append(f"- New Description: {data['body']}")
+        if data.get("due_date"):
+            lines.append(f"- New Due Date: {data['due_date']}")
+        if data.get("status"):
+            lines.append(f"- Status: {data['status']}")
+        if data.get("importance"):
             lines.append(f"- Priority: {data['importance']}")
 
     elif action.type == ActionType.CREATE_EVENT:

@@ -101,9 +101,14 @@ For calendar events:
 {{"type": "create_event", "subject": "Event title", "start_datetime": "YYYY-MM-DDTHH:MM:SS", "end_datetime": "YYYY-MM-DDTHH:MM:SS", "body": "optional description"}}
 ```
 
-For tasks:
+For creating tasks:
 ```ACTION
 {{"type": "create_task", "title": "Task title", "body": "optional details", "due_date": "YYYY-MM-DDTHH:MM:SS"}}
+```
+
+For updating existing tasks (use task_id and list_id from context):
+```ACTION
+{{"type": "update_task", "task_id": "task-id", "list_id": "list-id", "title": "new title", "body": "new description", "status": "notStarted|inProgress|completed", "importance": "low|normal|high"}}
 ```
 
 For notes:

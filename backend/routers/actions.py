@@ -15,6 +15,7 @@ from ..services.actions import (
     NoteAction,
     ProposedAction,
     TaskAction,
+    TaskUpdateAction,
     get_action_store,
 )
 from ..services.graph import GraphClient
@@ -103,6 +104,7 @@ class CreateActionRequest(BaseModel):
         """Validate data against the appropriate schema for the action type."""
         schema_map = {
             ActionType.CREATE_TASK: TaskAction,
+            ActionType.UPDATE_TASK: TaskUpdateAction,
             ActionType.CREATE_EVENT: EventAction,
             ActionType.CREATE_NOTE: NoteAction,
             ActionType.EDIT_NOTE: NoteAction,
@@ -344,6 +346,33 @@ async def _execute_action(action: ProposedAction, token: str) -> dict:
         )
 
         return {"task_id": result.get("id"), "title": result.get("title")}
+
+    elif action.type == ActionType.UPDATE_TASK:
+        data = action.data
+        list_id = data.get("list_id")
+        task_id = data.get("task_id")
+
+        if not list_id or not task_id:
+            raise Exception("list_id and task_id are required for updating a task")
+
+        updates = {}
+        if data.get("title"):
+            updates["title"] = data["title"]
+        if data.get("body") is not None:
+            updates["body"] = {"content": data["body"], "contentType": "text"}
+        if data.get("due_date"):
+            updates["dueDateTime"] = {"dateTime": data["due_date"], "timeZone": "UTC"}
+        if data.get("status"):
+            updates["status"] = data["status"]
+        if data.get("importance"):
+            updates["importance"] = data["importance"]
+
+        if not updates:
+            raise Exception("No updates provided")
+
+        await client.update_task(list_id, task_id, updates)
+
+        return {"task_id": task_id, "updated_fields": list(updates.keys())}
 
     elif action.type == ActionType.CREATE_EVENT:
         data = action.data
