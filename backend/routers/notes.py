@@ -18,29 +18,68 @@ router = APIRouter(prefix="/notes", tags=["notes"])
 settings = get_settings()
 
 
-def _validate_path_component(value: str, field_name: str) -> str:
+def _validate_path_component(value: str, field_name: str, is_filename: bool = False) -> str:
     """Validate a path component (folder or filename) to prevent path traversal attacks."""
     if not value:
-        raise HTTPException(status_code=400, detail=f"{field_name} cannot be empty")
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "invalid_input", "message": f"{field_name} cannot be empty"}
+        )
 
     # Reject path traversal attempts
     if ".." in value:
-        raise HTTPException(status_code=400, detail=f"Invalid {field_name}: path traversal not allowed")
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "path_traversal", "message": f"Invalid {field_name}: path traversal not allowed"}
+        )
 
     # Reject absolute paths
     if value.startswith("/") or value.startswith("\\"):
-        raise HTTPException(status_code=400, detail=f"Invalid {field_name}: absolute paths not allowed")
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "absolute_path", "message": f"Invalid {field_name}: absolute paths not allowed"}
+        )
 
     # Reject paths containing slashes (except for filename:path which FastAPI handles)
     if "/" in value or "\\" in value:
         # Allow forward slashes in filenames since FastAPI's :path converter handles nested paths
         # But still reject backslashes and double slashes
         if "\\" in value or "//" in value:
-            raise HTTPException(status_code=400, detail=f"Invalid {field_name}: invalid path characters")
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "invalid_chars", "message": f"Invalid {field_name}: invalid path characters"}
+            )
 
     # Reject null bytes
     if "\x00" in value:
-        raise HTTPException(status_code=400, detail=f"Invalid {field_name}: null bytes not allowed")
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "null_byte", "message": f"Invalid {field_name}: null bytes not allowed"}
+        )
+
+    # Additional validation for filenames
+    if is_filename:
+        # Check max length (100 chars)
+        if len(value) > 100:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "name_too_long", "message": f"{field_name} is too long (max 100 characters)"}
+            )
+
+        # Check for invalid filename characters
+        invalid_chars = r':*?"<>|'
+        if any(c in value for c in invalid_chars):
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "invalid_chars", "message": f"Invalid {field_name}: contains invalid characters ({invalid_chars})"}
+            )
+
+        # Reject names starting with a dot (hidden files)
+        if value.startswith("."):
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "hidden_file", "message": f"Invalid {field_name}: cannot start with a dot"}
+            )
 
     return value
 
@@ -103,7 +142,8 @@ async def list_folders(client: GraphClient = Depends(get_graph_client)):
             await _ensure_folder_structure(client)
             return {"folders": ["Diary", "Projects", "Study", "Inbox"]}
         raise HTTPException(
-            status_code=500, detail=safe_error_message(e, "List folders")
+            status_code=500,
+            detail={"code": "server_error", "message": safe_error_message(e, "List folders")}
         ) from e
 
 
@@ -136,7 +176,8 @@ async def list_notes(folder: str, client: GraphClient = Depends(get_graph_client
         if "itemNotFound" in str(e):
             return {"folder": folder, "notes": []}
         raise HTTPException(
-            status_code=500, detail=safe_error_message(e, "List notes")
+            status_code=500,
+            detail={"code": "server_error", "message": safe_error_message(e, "List notes")}
         ) from e
 
 
@@ -146,9 +187,9 @@ async def get_note(
     filename: str,
     client: GraphClient = Depends(get_graph_client),
 ):
-    """Get the content of a note. Auto-creates if it doesn't exist."""
+    """Get the content of a note. Returns 404 if not found."""
     _validate_path_component(folder, "folder")
-    _validate_path_component(filename, "filename")
+    _validate_path_component(filename, "filename", is_filename=True)
     note_path = get_note_path(folder, filename)
 
     try:
@@ -165,16 +206,14 @@ async def get_note(
     except Exception as e:
         error_str = str(e).lower()
         if "itemnotfound" in error_str or "404" in error_str or "not found" in error_str:
-            try:
-                return await _auto_create_note(client, folder, filename)
-            except Exception as create_err:
-                logger.error(f"Failed to auto-create note {note_path}: {create_err}")
-                raise HTTPException(
-                    status_code=500, detail=safe_error_message(create_err, "Create note")
-                ) from create_err
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "note_not_found", "message": f"Note '{filename}' not found in folder '{folder}'"}
+            ) from e
         logger.error(f"Failed to load note {note_path}: {e}")
         raise HTTPException(
-            status_code=500, detail=safe_error_message(e, "Load note")
+            status_code=500,
+            detail={"code": "server_error", "message": safe_error_message(e, "Load note")}
         ) from e
 
 
@@ -244,17 +283,26 @@ async def create_note(
 ):
     """Create a new note."""
     _validate_path_component(note.folder, "folder")
-    _validate_path_component(note.filename, "filename")
+    _validate_path_component(note.filename, "filename", is_filename=True)
+
+    # Auto-append .md extension if missing
+    filename = note.filename if note.filename.endswith(".md") else f"{note.filename}.md"
+
     try:
         # Ensure folder structure exists
         await _ensure_folder_structure(client, note.folder)
 
-        note_path = get_note_path(note.folder, note.filename)
+        note_path = get_note_path(note.folder, filename)
 
         # Check if file already exists
         try:
             await client.get_item_by_path(note_path)
-            raise HTTPException(status_code=409, detail="Note already exists")
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "already_exists", "message": f"Note '{filename}' already exists in folder '{note.folder}'"}
+            )
+        except HTTPException:
+            raise
         except Exception as e:
             if "itemNotFound" not in str(e):
                 raise
@@ -268,7 +316,7 @@ async def create_note(
             await ingest_document(
                 content=note.content,
                 source_path=note_path,
-                metadata={"folder": note.folder, "filename": note.filename},
+                metadata={"folder": note.folder, "filename": filename},
             )
             indexed = True
         except Exception as e:
@@ -277,6 +325,7 @@ async def create_note(
         return {
             "success": True,
             "path": note_path,
+            "filename": filename,
             "id": result.get("id"),
             "indexed": indexed,
         }
@@ -284,7 +333,8 @@ async def create_note(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=safe_error_message(e, "Create note")
+            status_code=500,
+            detail={"code": "server_error", "message": safe_error_message(e, "Create note")}
         ) from e
 
 
@@ -297,7 +347,7 @@ async def update_note(
 ):
     """Update an existing note."""
     _validate_path_component(folder, "folder")
-    _validate_path_component(filename, "filename")
+    _validate_path_component(filename, "filename", is_filename=True)
     try:
         note_path = get_note_path(folder, filename)
 
@@ -324,9 +374,13 @@ async def update_note(
         }
     except Exception as e:
         if "itemNotFound" in str(e):
-            raise HTTPException(status_code=404, detail="Note not found") from e
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "note_not_found", "message": f"Note '{filename}' not found in folder '{folder}'"}
+            ) from e
         raise HTTPException(
-            status_code=500, detail=safe_error_message(e, "Update note")
+            status_code=500,
+            detail={"code": "server_error", "message": safe_error_message(e, "Update note")}
         ) from e
 
 
@@ -338,7 +392,7 @@ async def delete_note(
 ):
     """Delete a note."""
     _validate_path_component(folder, "folder")
-    _validate_path_component(filename, "filename")
+    _validate_path_component(filename, "filename", is_filename=True)
     try:
         note_path = get_note_path(folder, filename)
 
@@ -348,9 +402,13 @@ async def delete_note(
         return {"success": True, "deleted": note_path}
     except Exception as e:
         if "itemNotFound" in str(e):
-            raise HTTPException(status_code=404, detail="Note not found") from e
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "note_not_found", "message": f"Note '{filename}' not found"}
+            ) from e
         raise HTTPException(
-            status_code=500, detail=safe_error_message(e, "Delete note")
+            status_code=500,
+            detail={"code": "server_error", "message": safe_error_message(e, "Delete note")}
         ) from e
 
 
@@ -411,7 +469,8 @@ async def create_today_diary(
             }
 
         raise HTTPException(
-            status_code=500, detail=safe_error_message(e, "Create diary entry")
+            status_code=500,
+            detail={"code": "server_error", "message": safe_error_message(e, "Create diary entry")}
         ) from e
 
 

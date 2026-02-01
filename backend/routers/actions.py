@@ -398,13 +398,18 @@ async def _execute_action(action: ProposedAction, token: str) -> dict:
         result = await client.upload_file(file_path, content.encode("utf-8"))
 
         # Also index the new note
-        await ingest_document(
-            content=content,
-            source_path=file_path,
-            metadata={"folder": folder, "filename": filename},
-        )
+        indexed = False
+        try:
+            await ingest_document(
+                content=content,
+                source_path=file_path,
+                metadata={"folder": folder, "filename": filename},
+            )
+            indexed = True
+        except Exception:
+            pass  # Indexing failure is non-critical
 
-        return {"path": file_path, "name": result.get("name")}
+        return {"path": file_path, "name": result.get("name"), "indexed": indexed}
 
     elif action.type == ActionType.EDIT_NOTE:
         data = action.data
@@ -412,17 +417,34 @@ async def _execute_action(action: ProposedAction, token: str) -> dict:
         filename = data.get("filename")
         content = data.get("content", "")
 
+        if not folder or not filename:
+            raise Exception("folder and filename are required for editing a note")
+
         file_path = f"{settings.onedrive_base_folder}/{folder}/{filename}"
+
+        # Check if note exists before editing
+        try:
+            await client.get_item_by_path(file_path)
+        except Exception as e:
+            if "itemNotFound" in str(e).lower() or "not found" in str(e).lower():
+                raise Exception(f"Note '{filename}' not found in folder '{folder}'") from e
+            raise
+
         result = await client.upload_file(file_path, content.encode("utf-8"))
 
         # Re-index the edited note
-        await ingest_document(
-            content=content,
-            source_path=file_path,
-            metadata={"folder": folder, "filename": filename},
-        )
+        indexed = False
+        try:
+            await ingest_document(
+                content=content,
+                source_path=file_path,
+                metadata={"folder": folder, "filename": filename},
+            )
+            indexed = True
+        except Exception:
+            pass  # Indexing failure is non-critical
 
-        return {"path": file_path, "name": result.get("name")}
+        return {"path": file_path, "name": result.get("name"), "indexed": indexed}
 
     elif action.type == ActionType.DRAFT_EMAIL:
         # For email drafts, we just save it as a note for now

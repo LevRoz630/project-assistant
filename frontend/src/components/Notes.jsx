@@ -3,6 +3,27 @@ import { useNavigate } from 'react-router-dom'
 import './Notes.css'
 import { API_BASE } from '../config'
 
+// Validate note name before sending to server
+const validateNoteName = (name) => {
+  if (!name.trim()) return null // Empty is handled separately
+  if (name.length > 100) return 'Name is too long (max 100 characters)'
+  if (/[\\/:*?"<>|]/.test(name)) return 'Name contains invalid characters (\\/:*?"<>|)'
+  if (name.startsWith('.')) return 'Name cannot start with a dot'
+  if (name.includes('..')) return 'Name cannot contain ".."'
+  return null
+}
+
+// Parse structured error from backend
+const parseError = (data, status) => {
+  if (typeof data?.detail === 'object') {
+    return { code: data.detail.code, message: data.detail.message }
+  }
+  if (typeof data?.detail === 'string') {
+    return { code: 'unknown', message: data.detail }
+  }
+  return { code: 'unknown', message: `Failed to create note (${status})` }
+}
+
 function Notes() {
   const [folders, setFolders] = useState([])
   const [activeFolder, setActiveFolder] = useState('Diary')
@@ -12,6 +33,7 @@ function Notes() {
   const [newNoteName, setNewNoteName] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState(null)
+  const [validationError, setValidationError] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -56,8 +78,22 @@ function Notes() {
     }
   }
 
+  const handleNameChange = (e) => {
+    const name = e.target.value
+    setNewNoteName(name)
+    setValidationError(validateNoteName(name))
+    setError(null) // Clear server error when user starts typing
+  }
+
   const createNote = async () => {
     if (!newNoteName.trim()) return
+
+    // Check validation before sending
+    const validation = validateNoteName(newNoteName)
+    if (validation) {
+      setValidationError(validation)
+      return
+    }
 
     const filename = newNoteName.endsWith('.md') ? newNoteName : `${newNoteName}.md`
 
@@ -77,19 +113,37 @@ function Notes() {
       })
 
       if (res.ok) {
+        const data = await res.json()
         setShowNewNote(false)
         setNewNoteName('')
-        navigate(`/notes/${activeFolder}/${filename}`)
+        setValidationError(null)
+        // Use the filename from response (backend may have normalized it)
+        navigate(`/notes/${activeFolder}/${data.filename || filename}`)
       } else {
         const data = await res.json().catch(() => ({}))
-        setError(data.detail || `Failed to create note (${res.status})`)
+        const { code, message } = parseError(data, res.status)
+
+        // Handle "already exists" with option to open
+        if (code === 'already_exists') {
+          setError({ type: 'exists', message, filename })
+        } else {
+          setError({ type: 'error', message })
+        }
       }
     } catch (err) {
       console.error('Failed to create note:', err)
-      setError('Network error - please try again')
+      setError({ type: 'error', message: 'Network error - please try again' })
     } finally {
       setCreating(false)
     }
+  }
+
+  const openExistingNote = () => {
+    const filename = newNoteName.endsWith('.md') ? newNoteName : `${newNoteName}.md`
+    setShowNewNote(false)
+    setNewNoteName('')
+    setError(null)
+    navigate(`/notes/${activeFolder}/${filename}`)
   }
 
   const createTodayDiary = async () => {
@@ -126,7 +180,7 @@ function Notes() {
           <div style={{ display: 'flex', gap: '12px' }}>
             {activeFolder === 'Diary' && (
               <button className="btn btn-secondary" onClick={createTodayDiary}>
-                Today's Diary
+                {"Today's Diary"}
               </button>
             )}
             <button className="btn btn-primary" onClick={() => { setShowNewNote(true); setError(null); }}>
@@ -190,7 +244,34 @@ function Notes() {
           <div className="modal-overlay" onClick={() => !creating && setShowNewNote(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <h3>New Note</h3>
-              {error && (
+              {error && error.type === 'exists' && (
+                <div style={{
+                  padding: '10px 12px',
+                  background: 'var(--warning, #e67e22)',
+                  color: 'white',
+                  borderRadius: '6px',
+                  marginBottom: '16px',
+                  fontSize: '14px'
+                }}>
+                  <div>{error.message}</div>
+                  <button
+                    onClick={openExistingNote}
+                    style={{
+                      marginTop: '8px',
+                      padding: '6px 12px',
+                      background: 'rgba(255,255,255,0.2)',
+                      border: 'none',
+                      borderRadius: '4px',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '13px'
+                    }}
+                  >
+                    Open existing note
+                  </button>
+                </div>
+              )}
+              {error && error.type === 'error' && (
                 <div style={{
                   padding: '10px 12px',
                   background: 'var(--error)',
@@ -199,7 +280,7 @@ function Notes() {
                   marginBottom: '16px',
                   fontSize: '14px'
                 }}>
-                  {error}
+                  {error.message}
                 </div>
               )}
               <div className="form-group">
@@ -209,16 +290,22 @@ function Notes() {
                   className="form-input"
                   placeholder="my-note"
                   value={newNoteName}
-                  onChange={(e) => setNewNoteName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !creating && createNote()}
+                  onChange={handleNameChange}
+                  onKeyDown={(e) => e.key === 'Enter' && !creating && !validationError && createNote()}
                   disabled={creating}
                   autoFocus
+                  style={validationError ? { borderColor: 'var(--error)' } : {}}
                 />
+                {validationError && (
+                  <div style={{ color: 'var(--error)', fontSize: '13px', marginTop: '6px' }}>
+                    {validationError}
+                  </div>
+                )}
               </div>
               <div className="modal-actions">
                 <button
                   className="btn btn-secondary"
-                  onClick={() => setShowNewNote(false)}
+                  onClick={() => { setShowNewNote(false); setValidationError(null); setError(null); }}
                   disabled={creating}
                 >
                   Cancel
@@ -226,7 +313,7 @@ function Notes() {
                 <button
                   className="btn btn-primary"
                   onClick={createNote}
-                  disabled={creating || !newNoteName.trim()}
+                  disabled={creating || !newNoteName.trim() || !!validationError}
                 >
                   {creating ? 'Creating...' : 'Create'}
                 </button>
