@@ -1,6 +1,9 @@
 """Microsoft Graph API client for OneDrive, Calendar, Tasks, and Email."""
 
+import logging
 import httpx
+
+logger = logging.getLogger(__name__)
 
 GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
 
@@ -38,6 +41,9 @@ class GraphClient:
             if response.status_code == 204:
                 return {"success": True}
 
+            if response.status_code >= 400:
+                error_body = response.text
+                logger.error(f"Graph API error {response.status_code}: {method} {endpoint} - {error_body}")
             response.raise_for_status()
             return response.json()
 
@@ -51,6 +57,9 @@ class GraphClient:
                 headers=self.headers,
                 timeout=30.0,
             )
+            if response.status_code >= 400:
+                error_body = response.text
+                logger.error(f"Graph API content error {response.status_code}: GET {endpoint} - {error_body}")
             response.raise_for_status()
             return response.content
 
@@ -71,6 +80,9 @@ class GraphClient:
                 content=content,
                 timeout=30.0,
             )
+            if response.status_code >= 400:
+                error_body = response.text
+                logger.error(f"Graph API upload error {response.status_code}: PUT {endpoint} - {error_body}")
             response.raise_for_status()
             return response.json()
 

@@ -290,9 +290,15 @@ async def create_note(
 
     try:
         # Ensure folder structure exists
-        await _ensure_folder_structure(client, note.folder)
+        logger.info(f"Creating note: folder={note.folder}, filename={filename}")
+        try:
+            await _ensure_folder_structure(client, note.folder)
+        except Exception as e:
+            logger.error(f"Failed to ensure folder structure: {type(e).__name__}: {e}")
+            raise
 
         note_path = get_note_path(note.folder, filename)
+        logger.info(f"Note path: {note_path}")
 
         # Check if file already exists
         try:
@@ -305,9 +311,11 @@ async def create_note(
             raise
         except Exception as e:
             if "itemNotFound" not in str(e):
+                logger.error(f"Error checking if file exists: {type(e).__name__}: {e}")
                 raise
 
         # Upload the file
+        logger.info(f"Uploading file to {note_path}")
         result = await client.upload_file(note_path, note.content.encode("utf-8"))
 
         # Ingest into vector store (non-blocking - note is created even if this fails)

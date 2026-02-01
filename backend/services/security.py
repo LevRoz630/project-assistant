@@ -72,7 +72,7 @@ def safe_error_message(error: Exception, operation: str, include_details: bool =
     """
     # Log the full error for debugging
     error_id = str(uuid.uuid4())[:8]
-    security_logger.info(
+    security_logger.error(
         f"ERROR_REF:{error_id} | operation={operation} | error={type(error).__name__}: {error}"
     )
 
