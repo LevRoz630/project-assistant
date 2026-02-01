@@ -49,8 +49,9 @@ function NoteEditor() {
         setOriginalContent(data.content || '')
       } else if (res.status === 404) {
         const data = await res.json().catch(() => ({}))
-        const message = typeof data?.detail === 'object' ? data.detail.message : 'Note not found'
-        setError(message)
+        const msg = typeof data?.detail === 'object' ? data.detail.message : 'Note not found'
+        // Ensure error message is always a string
+        setError(typeof msg === 'string' ? msg : 'Note not found')
       } else {
         throw new Error('Failed to load note')
       }
@@ -189,7 +190,7 @@ function NoteEditor() {
         </div>
         <div className="content-body">
           <div className="empty-state">
-            <h3>{error}</h3>
+            <h3>{typeof error === 'string' ? error : 'An error occurred'}</h3>
             <button className="btn btn-primary" onClick={() => navigate('/notes')}>
               Back to Notes
             </button>

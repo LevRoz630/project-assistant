@@ -257,3 +257,191 @@ class TestNotesValidation:
 
         # The endpoint accepts any extension (no validation)
         assert response.status_code == 200
+
+
+class TestNotesStructuredErrors:
+    """Tests for structured error responses."""
+
+    def test_get_nonexistent_note_returns_404_with_code(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+        mock_graph_client,
+    ):
+        """Test that GET on missing note returns structured 404."""
+        mock_graph_client.get_file_content = AsyncMock(side_effect=Exception("itemNotFound"))
+
+        with patch("routers.notes.GraphClient", return_value=mock_graph_client):
+            response = authenticated_client.get("/notes/content/Diary/nonexistent.md")
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"]["code"] == "note_not_found"
+        assert "nonexistent.md" in data["detail"]["message"]
+
+    def test_create_duplicate_note_returns_409_with_code(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+        mock_graph_client,
+    ):
+        """Test that creating existing note returns structured 409."""
+        # File already exists
+        mock_graph_client.get_item_by_path = AsyncMock(return_value={"id": "existing"})
+
+        with patch("routers.notes.GraphClient", return_value=mock_graph_client):
+            response = authenticated_client.post(
+                "/notes/create",
+                json={
+                    "folder": "Inbox",
+                    "filename": "existing.md",
+                    "content": "Content",
+                },
+            )
+
+        assert response.status_code == 409
+        data = response.json()
+        assert data["detail"]["code"] == "already_exists"
+        assert "existing.md" in data["detail"]["message"]
+
+    def test_update_nonexistent_note_returns_404_with_code(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+        mock_graph_client,
+    ):
+        """Test that updating missing note returns structured 404."""
+        mock_graph_client.upload_file = AsyncMock(side_effect=Exception("itemNotFound"))
+
+        with patch("routers.notes.GraphClient", return_value=mock_graph_client):
+            response = authenticated_client.put(
+                "/notes/update/Diary/missing.md",
+                json={"content": "Updated"},
+            )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"]["code"] == "note_not_found"
+
+    def test_delete_nonexistent_note_returns_404_with_code(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+        mock_graph_client,
+    ):
+        """Test that deleting missing note returns structured 404."""
+        mock_graph_client.delete_item = AsyncMock(side_effect=Exception("itemNotFound"))
+
+        with patch("routers.notes.GraphClient", return_value=mock_graph_client):
+            with patch("routers.notes.delete_document", new_callable=AsyncMock):
+                response = authenticated_client.delete("/notes/delete/Inbox/gone.md")
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"]["code"] == "note_not_found"
+
+
+class TestNotesValidationEnhanced:
+    """Tests for enhanced validation."""
+
+    def test_invalid_filename_chars_returns_400(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+    ):
+        """Test that invalid filename characters return structured 400."""
+        response = authenticated_client.post(
+            "/notes/create",
+            json={
+                "folder": "Inbox",
+                "filename": "bad:name.md",  # Colon is invalid
+                "content": "Content",
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.json()
+        assert data["detail"]["code"] == "invalid_chars"
+
+    def test_filename_too_long_returns_400(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+    ):
+        """Test that filename > 100 chars returns error."""
+        long_name = "a" * 101 + ".md"
+        response = authenticated_client.post(
+            "/notes/create",
+            json={
+                "folder": "Inbox",
+                "filename": long_name,
+                "content": "Content",
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.json()
+        assert data["detail"]["code"] == "name_too_long"
+
+    def test_hidden_filename_returns_400(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+    ):
+        """Test that filename starting with dot returns error."""
+        response = authenticated_client.post(
+            "/notes/create",
+            json={
+                "folder": "Inbox",
+                "filename": ".hidden.md",
+                "content": "Content",
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.json()
+        assert data["detail"]["code"] == "hidden_file"
+
+    def test_path_traversal_returns_400(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+    ):
+        """Test that path traversal in filename is rejected."""
+        response = authenticated_client.post(
+            "/notes/create",
+            json={
+                "folder": "Inbox",
+                "filename": "../escape.md",
+                "content": "Content",
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.json()
+        assert data["detail"]["code"] == "path_traversal"
+
+    def test_auto_append_md_extension(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+        mock_graph_client,
+    ):
+        """Test that .md is auto-appended if missing."""
+        mock_graph_client.get_item_by_path = AsyncMock(side_effect=Exception("itemNotFound"))
+        mock_graph_client.upload_file = AsyncMock(return_value={"id": "file-id", "name": "note.md"})
+
+        with patch("routers.notes.GraphClient", return_value=mock_graph_client):
+            with patch("routers.notes.ingest_document", new_callable=AsyncMock):
+                response = authenticated_client.post(
+                    "/notes/create",
+                    json={
+                        "folder": "Inbox",
+                        "filename": "note",  # No .md extension
+                        "content": "Content",
+                    },
+                )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["filename"] == "note.md"  # Should have .md appended

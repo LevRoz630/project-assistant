@@ -13,10 +13,15 @@ const validateNoteName = (name) => {
   return null
 }
 
-// Parse structured error from backend
+// Parse structured error from backend - always returns string message
 const parseError = (data, status) => {
   if (typeof data?.detail === 'object') {
-    return { code: data.detail.code, message: data.detail.message }
+    const msg = data.detail.message
+    return {
+      code: data.detail.code || 'unknown',
+      // Ensure message is always a string
+      message: typeof msg === 'string' ? msg : (msg ? JSON.stringify(msg) : 'An error occurred')
+    }
   }
   if (typeof data?.detail === 'string') {
     return { code: 'unknown', message: data.detail }
@@ -253,7 +258,7 @@ function Notes() {
                   marginBottom: '16px',
                   fontSize: '14px'
                 }}>
-                  <div>{error.message}</div>
+                  <div>{typeof error.message === 'string' ? error.message : 'Note already exists'}</div>
                   <button
                     onClick={openExistingNote}
                     style={{
@@ -280,7 +285,7 @@ function Notes() {
                   marginBottom: '16px',
                   fontSize: '14px'
                 }}>
-                  {error.message}
+                  {typeof error.message === 'string' ? error.message : 'An error occurred'}
                 </div>
               )}
               <div className="form-group">
