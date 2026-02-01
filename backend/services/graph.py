@@ -11,6 +11,20 @@ GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
 class GraphClient:
     """Microsoft Graph API client."""
 
+    # Shared HTTP client for connection pooling
+    _shared_client: httpx.AsyncClient | None = None
+
+    @classmethod
+    def _get_shared_client(cls) -> httpx.AsyncClient:
+        """Get or create the shared HTTP client for connection pooling."""
+        if cls._shared_client is None:
+            cls._shared_client = httpx.AsyncClient(
+                timeout=30.0,
+                follow_redirects=True,
+                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+            )
+        return cls._shared_client
+
     def __init__(self, access_token: str):
         self.access_token = access_token
         self.headers = {
@@ -27,41 +41,39 @@ class GraphClient:
     ) -> dict:
         """Make a request to Graph API."""
         url = f"{GRAPH_BASE_URL}{endpoint}"
+        client = self._get_shared_client()
 
-        async with httpx.AsyncClient() as client:
-            response = await client.request(
-                method=method,
-                url=url,
-                headers=self.headers,
-                json=json,
-                params=params,
-                timeout=30.0,
-            )
+        response = await client.request(
+            method=method,
+            url=url,
+            headers=self.headers,
+            json=json,
+            params=params,
+        )
 
-            if response.status_code == 204:
-                return {"success": True}
+        if response.status_code == 204:
+            return {"success": True}
 
-            if response.status_code >= 400:
-                error_body = response.text
-                logger.error(f"Graph API error {response.status_code}: {method} {endpoint} - {error_body}")
-            response.raise_for_status()
-            return response.json()
+        if response.status_code >= 400:
+            error_body = response.text
+            logger.error(f"Graph API error {response.status_code}: {method} {endpoint} - {error_body}")
+        response.raise_for_status()
+        return response.json()
 
     async def _request_content(self, endpoint: str) -> bytes:
         """Get raw content from Graph API."""
         url = f"{GRAPH_BASE_URL}{endpoint}"
+        client = self._get_shared_client()
 
-        async with httpx.AsyncClient(follow_redirects=True) as client:
-            response = await client.get(
-                url=url,
-                headers=self.headers,
-                timeout=30.0,
-            )
-            if response.status_code >= 400:
-                error_body = response.text
-                logger.error(f"Graph API content error {response.status_code}: GET {endpoint} - {error_body}")
-            response.raise_for_status()
-            return response.content
+        response = await client.get(
+            url=url,
+            headers=self.headers,
+        )
+        if response.status_code >= 400:
+            error_body = response.text
+            logger.error(f"Graph API content error {response.status_code}: GET {endpoint} - {error_body}")
+        response.raise_for_status()
+        return response.content
 
     async def _upload_content(
         self, endpoint: str, content: bytes, content_type: str = "text/plain"
@@ -72,19 +84,18 @@ class GraphClient:
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": content_type,
         }
+        client = self._get_shared_client()
 
-        async with httpx.AsyncClient() as client:
-            response = await client.put(
-                url=url,
-                headers=headers,
-                content=content,
-                timeout=30.0,
-            )
-            if response.status_code >= 400:
-                error_body = response.text
-                logger.error(f"Graph API upload error {response.status_code}: PUT {endpoint} - {error_body}")
-            response.raise_for_status()
-            return response.json()
+        response = await client.put(
+            url=url,
+            headers=headers,
+            content=content,
+        )
+        if response.status_code >= 400:
+            error_body = response.text
+            logger.error(f"Graph API upload error {response.status_code}: PUT {endpoint} - {error_body}")
+        response.raise_for_status()
+        return response.json()
 
     # ==================== User ====================
 

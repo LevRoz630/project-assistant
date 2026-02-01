@@ -154,15 +154,19 @@ async def _get_tasks_context(token: str) -> str:
 
     try:
         lists_result = await client.list_task_lists()
-        lists = lists_result.get("value", [])
+        lists = lists_result.get("value", [])[:5]  # Limit to 5 lists
 
-        for task_list in lists[:5]:  # Limit to 5 lists
+        # Fetch all task lists IN PARALLEL for better performance
+        async def fetch_list_tasks(task_list):
             list_id = task_list.get("id")
             list_name = task_list.get("displayName", "Tasks")
-
             tasks_result = await client.list_tasks(list_id, include_completed=False)
-            tasks = tasks_result.get("value", [])
+            return list_name, tasks_result.get("value", [])
 
+        results = await asyncio.gather(*[fetch_list_tasks(tl) for tl in lists])
+
+        # Format results
+        for list_name, tasks in results:
             if tasks:
                 tasks_text.append(f"\n## {list_name}")
                 for task in tasks[:10]:  # Limit to 10 tasks per list
@@ -345,7 +349,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
         try:
             results = await asyncio.wait_for(
                 search_documents(chat_request.message, k=5),
-                timeout=10.0
+                timeout=15.0
             )
             if results:
                 context_parts = []
@@ -368,7 +372,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
         if not chat_request.include_tasks:
             return ""
         try:
-            return await asyncio.wait_for(_get_tasks_context(token), timeout=10.0)
+            return await asyncio.wait_for(_get_tasks_context(token), timeout=15.0)
         except asyncio.TimeoutError:
             logger.warning("Tasks context fetch timed out")
             return "[Tasks unavailable - request timed out]"
@@ -380,7 +384,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
         if not chat_request.include_calendar:
             return ""
         try:
-            return await asyncio.wait_for(_get_calendar_context(token), timeout=10.0)
+            return await asyncio.wait_for(_get_calendar_context(token), timeout=15.0)
         except asyncio.TimeoutError:
             logger.warning("Calendar context fetch timed out")
             return "[Calendar unavailable - request timed out]"
@@ -392,7 +396,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
         if not chat_request.include_email:
             return ""
         try:
-            return await asyncio.wait_for(_get_email_context(token), timeout=10.0)
+            return await asyncio.wait_for(_get_email_context(token), timeout=15.0)
         except asyncio.TimeoutError:
             logger.warning("Email context fetch timed out")
             return "[Email unavailable - request timed out]"
@@ -561,7 +565,7 @@ async def stream_message(request: Request, chat_request: ChatRequest):
         try:
             results = await asyncio.wait_for(
                 search_documents(chat_request.message, k=5),
-                timeout=10.0
+                timeout=15.0
             )
             if results:
                 context_parts = []
@@ -584,7 +588,7 @@ async def stream_message(request: Request, chat_request: ChatRequest):
         if not chat_request.include_tasks:
             return ""
         try:
-            return await asyncio.wait_for(_get_tasks_context(token), timeout=10.0)
+            return await asyncio.wait_for(_get_tasks_context(token), timeout=15.0)
         except asyncio.TimeoutError:
             logger.warning("Tasks context fetch timed out (stream)")
             return ""
@@ -596,7 +600,7 @@ async def stream_message(request: Request, chat_request: ChatRequest):
         if not chat_request.include_calendar:
             return ""
         try:
-            return await asyncio.wait_for(_get_calendar_context(token), timeout=10.0)
+            return await asyncio.wait_for(_get_calendar_context(token), timeout=15.0)
         except asyncio.TimeoutError:
             logger.warning("Calendar context fetch timed out (stream)")
             return ""
@@ -608,7 +612,7 @@ async def stream_message(request: Request, chat_request: ChatRequest):
         if not chat_request.include_email:
             return ""
         try:
-            return await asyncio.wait_for(_get_email_context(token), timeout=10.0)
+            return await asyncio.wait_for(_get_email_context(token), timeout=15.0)
         except asyncio.TimeoutError:
             logger.warning("Email context fetch timed out (stream)")
             return ""
