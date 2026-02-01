@@ -1,6 +1,7 @@
 """Microsoft Graph API client for OneDrive, Calendar, Tasks, and Email."""
 
 import logging
+
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ class GraphClient:
         """Get or create the shared HTTP client for connection pooling."""
         if cls._shared_client is None:
             cls._shared_client = httpx.AsyncClient(
-                timeout=30.0,
+                timeout=httpx.Timeout(connect=5.0, read=25.0, write=10.0, pool=5.0),
                 follow_redirects=True,
                 limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
             )
@@ -316,11 +317,15 @@ class GraphClient:
         return await self._request("GET", "/me/messages", params=params)
 
     async def list_flagged_emails(self, top: int = 20) -> dict:
-        """List flagged (important) email messages."""
+        """List flagged (important) email messages.
+
+        Note: We don't use $orderby here because Microsoft Graph API returns
+        InefficientFilter error when combining $filter on flag/flagStatus
+        with $orderby. Sorting should be done client-side if needed.
+        """
         params = {
             "$filter": "flag/flagStatus eq 'flagged'",
             "$top": str(top),
-            "$orderby": "receivedDateTime desc",
             "$select": "id,subject,from,receivedDateTime,isRead,bodyPreview,flag",
         }
 

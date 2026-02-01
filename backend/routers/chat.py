@@ -26,6 +26,7 @@ from ..services.search import execute_searches
 from ..services.security import SecurityEventType, log_security_event
 from ..services.vectors import get_collection_stats, ingest_document, search_documents
 from ..services.web_fetch import fetch_urls
+from ..services.context_cache import get_cached_context, set_cached_context
 
 logger = logging.getLogger(__name__)
 
@@ -371,8 +372,16 @@ async def send_message(request: Request, chat_request: ChatRequest):
     async def get_tasks():
         if not chat_request.include_tasks:
             return ""
+        # Check cache first
+        cached = get_cached_context("tasks", session_id)
+        if cached:
+            return cached
         try:
-            return await asyncio.wait_for(_get_tasks_context(token), timeout=15.0)
+            result = await asyncio.wait_for(_get_tasks_context(token), timeout=20.0)
+            # Cache if successful (don't cache error messages)
+            if result and not result.startswith("["):
+                set_cached_context("tasks", session_id, result)
+            return result
         except asyncio.TimeoutError:
             logger.warning("Tasks context fetch timed out")
             return "[Tasks unavailable - request timed out]"
@@ -383,8 +392,16 @@ async def send_message(request: Request, chat_request: ChatRequest):
     async def get_calendar():
         if not chat_request.include_calendar:
             return ""
+        # Check cache first
+        cached = get_cached_context("calendar", session_id)
+        if cached:
+            return cached
         try:
-            return await asyncio.wait_for(_get_calendar_context(token), timeout=15.0)
+            result = await asyncio.wait_for(_get_calendar_context(token), timeout=20.0)
+            # Cache if successful (don't cache error messages)
+            if result and not result.startswith("["):
+                set_cached_context("calendar", session_id, result)
+            return result
         except asyncio.TimeoutError:
             logger.warning("Calendar context fetch timed out")
             return "[Calendar unavailable - request timed out]"
@@ -395,8 +412,16 @@ async def send_message(request: Request, chat_request: ChatRequest):
     async def get_email():
         if not chat_request.include_email:
             return ""
+        # Check cache first
+        cached = get_cached_context("email", session_id)
+        if cached:
+            return cached
         try:
-            return await asyncio.wait_for(_get_email_context(token), timeout=15.0)
+            result = await asyncio.wait_for(_get_email_context(token), timeout=20.0)
+            # Cache if successful (don't cache error messages)
+            if result and not result.startswith("["):
+                set_cached_context("email", session_id, result)
+            return result
         except asyncio.TimeoutError:
             logger.warning("Email context fetch timed out")
             return "[Email unavailable - request timed out]"
@@ -587,8 +612,16 @@ async def stream_message(request: Request, chat_request: ChatRequest):
     async def get_tasks():
         if not chat_request.include_tasks:
             return ""
+        # Check cache first
+        cached = get_cached_context("tasks", session_id)
+        if cached:
+            return cached
         try:
-            return await asyncio.wait_for(_get_tasks_context(token), timeout=15.0)
+            result = await asyncio.wait_for(_get_tasks_context(token), timeout=20.0)
+            # Cache if successful
+            if result and not result.startswith("["):
+                set_cached_context("tasks", session_id, result)
+            return result
         except asyncio.TimeoutError:
             logger.warning("Tasks context fetch timed out (stream)")
             return ""
@@ -599,8 +632,16 @@ async def stream_message(request: Request, chat_request: ChatRequest):
     async def get_calendar():
         if not chat_request.include_calendar:
             return ""
+        # Check cache first
+        cached = get_cached_context("calendar", session_id)
+        if cached:
+            return cached
         try:
-            return await asyncio.wait_for(_get_calendar_context(token), timeout=15.0)
+            result = await asyncio.wait_for(_get_calendar_context(token), timeout=20.0)
+            # Cache if successful
+            if result and not result.startswith("["):
+                set_cached_context("calendar", session_id, result)
+            return result
         except asyncio.TimeoutError:
             logger.warning("Calendar context fetch timed out (stream)")
             return ""
@@ -611,8 +652,16 @@ async def stream_message(request: Request, chat_request: ChatRequest):
     async def get_email():
         if not chat_request.include_email:
             return ""
+        # Check cache first
+        cached = get_cached_context("email", session_id)
+        if cached:
+            return cached
         try:
-            return await asyncio.wait_for(_get_email_context(token), timeout=15.0)
+            result = await asyncio.wait_for(_get_email_context(token), timeout=20.0)
+            # Cache if successful
+            if result and not result.startswith("["):
+                set_cached_context("email", session_id, result)
+            return result
         except asyncio.TimeoutError:
             logger.warning("Email context fetch timed out (stream)")
             return ""

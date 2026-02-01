@@ -1,6 +1,6 @@
 """Tests for the tasks router."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -190,3 +190,90 @@ class TestTasksValidation:
         )
 
         assert response.status_code == 422
+
+
+class TestTasksCacheInvalidation:
+    """Tests for cache invalidation on task mutations."""
+
+    def test_create_task_invalidates_cache(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+        mock_graph_client,
+        mock_session_id,
+    ):
+        """Test that creating a task invalidates the tasks cache."""
+        mock_invalidate = MagicMock()
+
+        with (
+            patch("routers.tasks.GraphClient", return_value=mock_graph_client),
+            patch("routers.tasks.invalidate_context", mock_invalidate),
+        ):
+            response = authenticated_client.post(
+                "/tasks/create",
+                json={"list_id": "list-1", "title": "New Task"},
+            )
+
+        assert response.status_code == 200
+        mock_invalidate.assert_called_once_with("tasks", mock_session_id)
+
+    def test_update_task_invalidates_cache(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+        mock_graph_client,
+        mock_session_id,
+    ):
+        """Test that updating a task invalidates the tasks cache."""
+        mock_graph_client.update_task = AsyncMock(return_value={"id": "task-1"})
+        mock_invalidate = MagicMock()
+
+        with (
+            patch("routers.tasks.GraphClient", return_value=mock_graph_client),
+            patch("routers.tasks.invalidate_context", mock_invalidate),
+        ):
+            response = authenticated_client.patch(
+                "/tasks/update/list-1/task-1",
+                json={"title": "Updated Task"},
+            )
+
+        assert response.status_code == 200
+        mock_invalidate.assert_called_once_with("tasks", mock_session_id)
+
+    def test_complete_task_invalidates_cache(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+        mock_graph_client,
+        mock_session_id,
+    ):
+        """Test that completing a task invalidates the tasks cache."""
+        mock_invalidate = MagicMock()
+
+        with (
+            patch("routers.tasks.GraphClient", return_value=mock_graph_client),
+            patch("routers.tasks.invalidate_context", mock_invalidate),
+        ):
+            response = authenticated_client.post("/tasks/complete/list-1/task-1")
+
+        assert response.status_code == 200
+        mock_invalidate.assert_called_once_with("tasks", mock_session_id)
+
+    def test_delete_task_invalidates_cache(
+        self,
+        authenticated_client: TestClient,
+        mock_get_access_token,
+        mock_graph_client,
+        mock_session_id,
+    ):
+        """Test that deleting a task invalidates the tasks cache."""
+        mock_invalidate = MagicMock()
+
+        with (
+            patch("routers.tasks.GraphClient", return_value=mock_graph_client),
+            patch("routers.tasks.invalidate_context", mock_invalidate),
+        ):
+            response = authenticated_client.delete("/tasks/delete/list-1/task-1")
+
+        assert response.status_code == 200
+        mock_invalidate.assert_called_once_with("tasks", mock_session_id)

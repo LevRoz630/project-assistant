@@ -1,8 +1,10 @@
 """Microsoft To Do tasks endpoints."""
 
-from ..auth import get_access_token_for_service
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+
+from ..auth import get_access_token_for_service
+from ..services.context_cache import invalidate_context
 from ..services.graph import GraphClient
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -206,6 +208,7 @@ async def list_important_tasks(
 
 @router.post("/create")
 async def create_task(
+    request: Request,
     task: TaskCreate,
     client: GraphClient = Depends(get_graph_client),
 ):
@@ -233,6 +236,11 @@ async def create_task(
             due_date=task.due_date,
         )
 
+        # Invalidate tasks cache so next chat message gets fresh data
+        session_id = request.cookies.get("session_id")
+        if session_id:
+            invalidate_context("tasks", session_id)
+
         return {
             "success": True,
             "task": {
@@ -249,6 +257,7 @@ async def create_task(
 
 @router.patch("/update/{list_id}/{task_id}")
 async def update_task(
+    request: Request,
     list_id: str,
     task_id: str,
     task: TaskUpdate,
@@ -271,6 +280,11 @@ async def update_task(
 
         await client.update_task(list_id, task_id, updates)
 
+        # Invalidate tasks cache so next chat message gets fresh data
+        session_id = request.cookies.get("session_id")
+        if session_id:
+            invalidate_context("tasks", session_id)
+
         return {"success": True, "task_id": task_id}
     except HTTPException:
         raise
@@ -280,6 +294,7 @@ async def update_task(
 
 @router.post("/complete/{list_id}/{task_id}")
 async def complete_task(
+    request: Request,
     list_id: str,
     task_id: str,
     client: GraphClient = Depends(get_graph_client),
@@ -287,6 +302,12 @@ async def complete_task(
     """Mark a task as complete."""
     try:
         await client.complete_task(list_id, task_id)
+
+        # Invalidate tasks cache so next chat message gets fresh data
+        session_id = request.cookies.get("session_id")
+        if session_id:
+            invalidate_context("tasks", session_id)
+
         return {"success": True, "task_id": task_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -294,6 +315,7 @@ async def complete_task(
 
 @router.delete("/delete/{list_id}/{task_id}")
 async def delete_task(
+    request: Request,
     list_id: str,
     task_id: str,
     client: GraphClient = Depends(get_graph_client),
@@ -301,6 +323,12 @@ async def delete_task(
     """Delete a task."""
     try:
         await client.delete_task(list_id, task_id)
+
+        # Invalidate tasks cache so next chat message gets fresh data
+        session_id = request.cookies.get("session_id")
+        if session_id:
+            invalidate_context("tasks", session_id)
+
         return {"success": True, "deleted": task_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e

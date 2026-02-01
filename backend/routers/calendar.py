@@ -3,9 +3,11 @@
 import logging
 from datetime import datetime, timedelta
 
-from ..auth import get_access_token_for_service
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+
+from ..auth import get_access_token_for_service
+from ..services.context_cache import invalidate_context
 from ..services.graph import GraphClient
 
 logger = logging.getLogger(__name__)
@@ -144,6 +146,7 @@ async def get_events_range(
 
 @router.post("/create")
 async def create_event(
+    request: Request,
     event: EventCreate,
     client: GraphClient = Depends(get_graph_client),
 ):
@@ -157,6 +160,11 @@ async def create_event(
             location=event.location,
             attendees=event.attendees,
         )
+
+        # Invalidate calendar cache so next chat message gets fresh data
+        session_id = request.cookies.get("session_id")
+        if session_id:
+            invalidate_context("calendar", session_id)
 
         return {
             "success": True,
@@ -174,12 +182,19 @@ async def create_event(
 
 @router.delete("/delete/{event_id}")
 async def delete_event(
+    request: Request,
     event_id: str,
     client: GraphClient = Depends(get_graph_client),
 ):
     """Delete a calendar event."""
     try:
         await client.delete_event(event_id)
+
+        # Invalidate calendar cache so next chat message gets fresh data
+        session_id = request.cookies.get("session_id")
+        if session_id:
+            invalidate_context("calendar", session_id)
+
         return {"success": True, "deleted": event_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
