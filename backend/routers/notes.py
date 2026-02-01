@@ -138,7 +138,8 @@ async def list_folders(client: GraphClient = Depends(get_graph_client)):
         return {"folders": folders}
     except Exception as e:
         # If folder doesn't exist, create it
-        if "itemNotFound" in str(e):
+        error_str = str(e).lower()
+        if "itemnotfound" in error_str or "404" in error_str:
             await _ensure_folder_structure(client)
             return {"folders": ["Diary", "Projects", "Study", "Inbox"]}
         raise HTTPException(
@@ -173,7 +174,8 @@ async def list_notes(folder: str, client: GraphClient = Depends(get_graph_client
 
         return {"folder": folder, "notes": notes}
     except Exception as e:
-        if "itemNotFound" in str(e):
+        error_str = str(e).lower()
+        if "itemnotfound" in error_str or "404" in error_str:
             return {"folder": folder, "notes": []}
         raise HTTPException(
             status_code=500,
@@ -310,7 +312,9 @@ async def create_note(
         except HTTPException:
             raise
         except Exception as e:
-            if "itemNotFound" not in str(e):
+            # 404 or itemNotFound means file doesn't exist - that's expected for new notes
+            error_str = str(e).lower()
+            if "itemnotfound" not in error_str and "404" not in error_str:
                 logger.error(f"Error checking if file exists: {type(e).__name__}: {e}")
                 raise
 
@@ -381,7 +385,8 @@ async def update_note(
             "indexed": indexed,
         }
     except Exception as e:
-        if "itemNotFound" in str(e):
+        error_str = str(e).lower()
+        if "itemnotfound" in error_str or "404" in error_str:
             raise HTTPException(
                 status_code=404,
                 detail={"code": "note_not_found", "message": f"Note '{filename}' not found in folder '{folder}'"}
@@ -409,7 +414,8 @@ async def delete_note(
 
         return {"success": True, "deleted": note_path}
     except Exception as e:
-        if "itemNotFound" in str(e):
+        error_str = str(e).lower()
+        if "itemnotfound" in error_str or "404" in error_str:
             raise HTTPException(
                 status_code=404,
                 detail={"code": "note_not_found", "message": f"Note '{filename}' not found"}
@@ -439,7 +445,8 @@ async def create_today_diary(
             "content": content.decode("utf-8"),
         }
     except Exception as e:
-        if "itemNotFound" in str(e):
+        error_str = str(e).lower()
+        if "itemnotfound" in error_str or "404" in error_str:
             # Create new diary entry
             template = f"""# {today}
 
