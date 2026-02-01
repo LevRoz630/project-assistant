@@ -1,1 +1,1 @@
-"""Test suite for Personal AI Assistant."""
+"""Test suite for Project Assistant."""

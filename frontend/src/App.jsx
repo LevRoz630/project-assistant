@@ -83,7 +83,7 @@ function App() {
   if (!user) {
     return (
       <div className="login-container">
-        <h1>Personal AI Assistant</h1>
+        <h1>Project Assistant</h1>
         <p>Your unified productivity hub with AI-powered insights</p>
 
         <div className="login-options">
@@ -103,7 +103,7 @@ function App() {
     <div className="app-container">
       {/* Mobile header */}
       <header className="mobile-header">
-        <h1>AI Assistant</h1>
+        <h1>Project Assistant</h1>
         <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
           <MenuIcon />
         </button>
@@ -145,7 +145,7 @@ function App() {
 
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1>AI Assistant</h1>
+          <h1>Project Assistant</h1>
         </div>
 
         <nav className="sidebar-nav">

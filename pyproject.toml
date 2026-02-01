@@ -1,11 +1,11 @@
 [project]
-name = "personal-ai-assistant"
+name = "project-assistant"
 version = "0.1.0"
-description = "Personal AI Assistant with Microsoft 365 integration"
+description = "Project Assistant with Microsoft 365 integration"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "Personal AI Assistant Contributors"}
+    {name = "Project Assistant Contributors"}
 ]
 keywords = ["ai", "assistant", "microsoft", "langchain", "fastapi"]
 classifiers = [

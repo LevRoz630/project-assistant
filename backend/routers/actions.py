@@ -496,7 +496,7 @@ async def _execute_action(action: ProposedAction, token: str) -> dict:
 {body}
 
 ---
-*Created by AI Assistant. Review before sending.*
+*Created by Project Assistant. Review before sending.*
 """
 
         filename = f"draft-{action.id}.md"

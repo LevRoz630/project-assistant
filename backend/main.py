@@ -1,4 +1,4 @@
-"""Personal AI Assistant - FastAPI Backend."""
+"""Project Assistant - FastAPI Backend."""
 
 import os
 from collections import defaultdict
@@ -48,7 +48,7 @@ async def lifespan(_app: FastAPI):  # Required by FastAPI lifespan protocol
 
 app = FastAPI(
     title=settings.app_name,
-    description="Personal AI Assistant with notes, tasks, and calendar integration",
+    description="Project Assistant with notes, tasks, and calendar integration",
     version="0.1.0",
     lifespan=lifespan,
 )

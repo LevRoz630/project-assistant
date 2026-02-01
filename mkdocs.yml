@@ -1,5 +1,5 @@
-site_name: Personal AI Assistant
-site_description: Documentation for the Personal AI Assistant with Microsoft 365 integration
+site_name: Project Assistant
+site_description: Documentation for Project Assistant with Microsoft 365 integration
 site_url: https://example.com/docs
 
 theme:

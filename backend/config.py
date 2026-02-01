@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     """Application settings."""
 
     # App
-    app_name: str = "Personal AI Assistant"
+    app_name: str = "Project Assistant"
     debug: bool = False
     secret_key: str = ""  # Required in production - set via SECRET_KEY env var
 
