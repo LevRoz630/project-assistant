@@ -841,3 +841,69 @@ async def delete_conversation_endpoint(request: Request, conversation_id: str):
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     return {"status": "deleted", "id": conversation_id}
+
+
+@router.post("/preload")
+async def preload_context(request: Request):
+    """Preload context cache for faster first chat message.
+
+    Call this after login to warm the cache. Fetches tasks, calendar,
+    and email in parallel and caches them.
+    """
+    session_id = request.cookies.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    token = get_access_token(session_id)
+    if not token:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    cached = {"tasks": False, "calendar": False, "email": False}
+
+    async def preload_tasks():
+        # Skip if already cached
+        if get_cached_context("tasks", session_id):
+            return True
+        try:
+            result = await asyncio.wait_for(_get_tasks_context(token), timeout=20.0)
+            if result and not result.startswith("["):
+                set_cached_context("tasks", session_id, result)
+                return True
+        except Exception as e:
+            logger.warning(f"Preload tasks failed: {e}")
+        return False
+
+    async def preload_calendar():
+        if get_cached_context("calendar", session_id):
+            return True
+        try:
+            result = await asyncio.wait_for(_get_calendar_context(token), timeout=20.0)
+            if result and not result.startswith("["):
+                set_cached_context("calendar", session_id, result)
+                return True
+        except Exception as e:
+            logger.warning(f"Preload calendar failed: {e}")
+        return False
+
+    async def preload_email():
+        if get_cached_context("email", session_id):
+            return True
+        try:
+            result = await asyncio.wait_for(_get_email_context(token), timeout=20.0)
+            if result and not result.startswith("["):
+                set_cached_context("email", session_id, result)
+                return True
+        except Exception as e:
+            logger.warning(f"Preload email failed: {e}")
+        return False
+
+    # Fetch all in parallel
+    results = await asyncio.gather(
+        preload_tasks(),
+        preload_calendar(),
+        preload_email(),
+    )
+
+    cached["tasks"], cached["calendar"], cached["email"] = results
+
+    return {"preloaded": cached}
