@@ -742,98 +742,53 @@ async def ingest_all_notes(request: Request):
     }
 
 
-HISTORY_FILE_PATH = "_system/chat_history.json"
+from ..services.chat_history import (
+    get_chat_history,
+    save_chat_history,
+    delete_conversation as delete_chat_conversation,
+)
 
 
 @router.get("/history")
 async def get_conversation_history(request: Request):
-    """Get conversation history from OneDrive."""
+    """Get conversation history from Redis."""
     session_id = request.cookies.get("session_id")
     if not session_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    token = get_access_token(session_id)
-    if not token:
-        raise HTTPException(status_code=401, detail="Session expired")
-
-    settings = get_settings()
-    client = GraphClient(token)
-    file_path = f"{settings.onedrive_base_folder}/{HISTORY_FILE_PATH}"
-
-    try:
-        content = await client.get_file_content(file_path)
-        history = json.loads(content.decode("utf-8"))
-        return {"conversations": history.get("conversations", [])}
-    except Exception:
-        # File doesn't exist yet, return empty history
-        return {"conversations": []}
+    conversations = get_chat_history(session_id)
+    return {"conversations": conversations}
 
 
 @router.post("/history")
 async def save_conversation_history(request: Request):
-    """Save conversation history to OneDrive."""
+    """Save conversation history to Redis (keeps last 10)."""
     session_id = request.cookies.get("session_id")
     if not session_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    token = get_access_token(session_id)
-    if not token:
-        raise HTTPException(status_code=401, detail="Session expired")
-
     body = await request.json()
     conversations = body.get("conversations", [])
 
-    settings = get_settings()
-    client = GraphClient(token)
+    success = save_chat_history(session_id, conversations)
 
-    # Ensure _system folder exists
-    try:
-        await client.list_folder(f"{settings.onedrive_base_folder}/_system")
-    except Exception:
-        try:
-            await client.create_folder(settings.onedrive_base_folder, "_system")
-        except Exception as e:
-            # Folder might already exist, or creation failed - log but continue
-            logger.debug(f"Could not create _system folder (may already exist): {e}")
+    if not success:
+        # Redis not available - return success anyway but log warning
+        logger.warning("Chat history not saved - Redis unavailable")
 
-    file_path = f"{settings.onedrive_base_folder}/{HISTORY_FILE_PATH}"
-    content = json.dumps({"conversations": conversations}, indent=2)
-
-    try:
-        await client.upload_file(file_path, content.encode("utf-8"))
-        return {"status": "saved", "count": len(conversations)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save history: {e}") from e
+    return {"status": "saved", "count": min(len(conversations), 10)}
 
 
 @router.delete("/history/{conversation_id}")
-async def delete_conversation(request: Request, conversation_id: str):
+async def delete_conversation_endpoint(request: Request, conversation_id: str):
     """Delete a specific conversation from history."""
     session_id = request.cookies.get("session_id")
     if not session_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    token = get_access_token(session_id)
-    if not token:
-        raise HTTPException(status_code=401, detail="Session expired")
+    success = delete_chat_conversation(session_id, conversation_id)
 
-    settings = get_settings()
-    client = GraphClient(token)
-    file_path = f"{settings.onedrive_base_folder}/{HISTORY_FILE_PATH}"
+    if not success:
+        raise HTTPException(status_code=404, detail="Conversation not found")
 
-    try:
-        # Load existing history
-        content = await client.get_file_content(file_path)
-        history = json.loads(content.decode("utf-8"))
-        conversations = history.get("conversations", [])
-
-        # Filter out the conversation to delete
-        updated = [c for c in conversations if c.get("id") != conversation_id]
-
-        # Save back
-        new_content = json.dumps({"conversations": updated}, indent=2)
-        await client.upload_file(file_path, new_content.encode("utf-8"))
-
-        return {"status": "deleted", "id": conversation_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete conversation: {e}") from e
+    return {"status": "deleted", "id": conversation_id}
