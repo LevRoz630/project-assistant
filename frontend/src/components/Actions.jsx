@@ -88,6 +88,8 @@ function Actions() {
       case 'create_note':
       case 'edit_note':
         return '📝'
+      case 'move_note':
+        return '📂'
       case 'draft_email':
         return '✉️'
       default:
@@ -106,6 +108,8 @@ function Actions() {
         return `Create Note: ${data.filename}`
       case 'edit_note':
         return `Edit Note: ${data.filename}`
+      case 'move_note':
+        return `Move Note: ${data.filename}`
       case 'draft_email':
         return `Draft Email: ${data.subject}`
       default:
@@ -159,6 +163,15 @@ function Actions() {
             <div><strong>Filename:</strong> {data.filename}</div>
             <div><strong>Content Preview:</strong></div>
             <pre className="content-preview">{data.content?.substring(0, 500)}...</pre>
+          </div>
+        )
+
+      case 'move_note':
+        return (
+          <div className="action-details">
+            <div><strong>Filename:</strong> {data.filename}</div>
+            <div><strong>From:</strong> {data.source_folder}</div>
+            <div><strong>To:</strong> {data.target_folder}</div>
           </div>
         )
 

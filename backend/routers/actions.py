@@ -12,6 +12,7 @@ from ..services.actions import (
     ActionType,
     EmailDraftAction,
     EventAction,
+    MoveNoteAction,
     NoteAction,
     ProposedAction,
     TaskAction,
@@ -19,7 +20,7 @@ from ..services.actions import (
     get_action_store,
 )
 from ..services.graph import GraphClient
-from ..services.vectors import ingest_document
+from ..services.vectors import delete_document, ingest_document
 
 router = APIRouter(prefix="/actions", tags=["actions"])
 settings = get_settings()
@@ -108,6 +109,7 @@ class CreateActionRequest(BaseModel):
             ActionType.CREATE_EVENT: EventAction,
             ActionType.CREATE_NOTE: NoteAction,
             ActionType.EDIT_NOTE: NoteAction,
+            ActionType.MOVE_NOTE: MoveNoteAction,
             ActionType.DRAFT_EMAIL: EmailDraftAction,
         }
 
@@ -445,6 +447,36 @@ async def _execute_action(action: ProposedAction, token: str) -> dict:
             pass  # Indexing failure is non-critical
 
         return {"path": file_path, "name": result.get("name"), "indexed": indexed}
+
+    elif action.type == ActionType.MOVE_NOTE:
+        data = action.data
+        filename = data.get("filename")
+        source_folder = data.get("source_folder")
+        target_folder = data.get("target_folder")
+
+        if not filename or not source_folder or not target_folder:
+            raise Exception("filename, source_folder, and target_folder are required")
+
+        source_path = f"{settings.onedrive_base_folder}/{source_folder}/{filename}"
+        target_folder_path = f"{settings.onedrive_base_folder}/{target_folder}"
+
+        # Move file
+        result = await client.move_item(source_path, target_folder_path, filename)
+
+        # Update vector store
+        new_path = f"{settings.onedrive_base_folder}/{target_folder}/{filename}"
+        try:
+            await delete_document(source_path)
+            content = await client.get_file_content(new_path)
+            await ingest_document(
+                content=content.decode("utf-8"),
+                source_path=new_path,
+                metadata={"folder": target_folder, "filename": filename},
+            )
+        except Exception:
+            pass  # Vector store update is non-critical
+
+        return {"moved": True, "new_folder": target_folder, "new_path": new_path}
 
     elif action.type == ActionType.DRAFT_EMAIL:
         # For email drafts, we just save it as a note for now

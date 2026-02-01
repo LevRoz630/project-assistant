@@ -426,6 +426,69 @@ async def delete_note(
         ) from e
 
 
+class NoteMove(BaseModel):
+    """Request body for moving a note."""
+
+    target_folder: str
+
+
+@router.post("/move/{folder}/{filename:path}")
+async def move_note(
+    folder: str,
+    filename: str,
+    move: NoteMove,
+    client: GraphClient = Depends(get_graph_client),
+):
+    """Move a note to a different folder."""
+    _validate_path_component(folder, "source folder")
+    _validate_path_component(move.target_folder, "target folder")
+    _validate_path_component(filename, "filename", is_filename=True)
+
+    if folder == move.target_folder:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "same_folder", "message": "Note is already in that folder"}
+        )
+
+    source_path = get_note_path(folder, filename)
+    target_folder_path = f"{settings.onedrive_base_folder}/{move.target_folder}"
+
+    try:
+        # Move file in OneDrive
+        result = await client.move_item(source_path, target_folder_path, filename)
+
+        # Update vector store
+        new_path = get_note_path(move.target_folder, filename)
+        try:
+            await delete_document(source_path)
+            content = await client.get_file_content(new_path)
+            await ingest_document(
+                content=content.decode("utf-8"),
+                source_path=new_path,
+                metadata={"folder": move.target_folder, "filename": filename},
+            )
+        except Exception as e:
+            logger.warning(f"Failed to update vector store after move: {e}")
+
+        return {
+            "success": True,
+            "new_path": new_path,
+            "new_folder": move.target_folder,
+            "id": result.get("id"),
+        }
+    except Exception as e:
+        error_str = str(e).lower()
+        if "itemnotfound" in error_str or "404" in error_str:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "note_not_found", "message": f"Note '{filename}' not found in folder '{folder}'"}
+            ) from e
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "server_error", "message": safe_error_message(e, "Move note")}
+        ) from e
+
+
 @router.post("/diary/today")
 async def create_today_diary(
     client: GraphClient = Depends(get_graph_client),

@@ -141,6 +141,21 @@ class GraphClient:
         encoded_path = item_path.replace(" ", "%20")
         return await self._request("DELETE", f"/me/drive/root:/{encoded_path}")
 
+    async def move_item(self, old_path: str, new_parent_path: str, new_name: str | None = None) -> dict:
+        """Move an item to a different folder and optionally rename it."""
+        encoded_old = old_path.replace(" ", "%20")
+        # Get item ID first (Graph API requires ID for move)
+        item = await self._request("GET", f"/me/drive/root:/{encoded_old}")
+        item_id = item["id"]
+
+        # Build update payload
+        encoded_parent = new_parent_path.replace(" ", "%20")
+        updates = {"parentReference": {"path": f"/drive/root:/{encoded_parent}"}}
+        if new_name:
+            updates["name"] = new_name
+
+        return await self._request("PATCH", f"/me/drive/items/{item_id}", json=updates)
+
     # ==================== Microsoft To Do ====================
 
     async def list_task_lists(self) -> dict:

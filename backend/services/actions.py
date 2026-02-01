@@ -16,6 +16,7 @@ class ActionType(str, Enum):
     CREATE_EVENT = "create_event"
     CREATE_NOTE = "create_note"
     EDIT_NOTE = "edit_note"
+    MOVE_NOTE = "move_note"
     DRAFT_EMAIL = "draft_email"
 
 
@@ -69,6 +70,14 @@ class NoteAction(BaseModel):
     filename: str
     content: str
     original_content: str | None = None  # For edits, to show diff
+
+
+class MoveNoteAction(BaseModel):
+    """Data for moving a note to a different folder."""
+
+    filename: str
+    source_folder: str
+    target_folder: str
 
 
 class EmailDraftAction(BaseModel):

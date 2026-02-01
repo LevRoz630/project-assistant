@@ -15,6 +15,8 @@ function NoteEditor() {
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState('saved') // 'saved' | 'saving' | 'failed' | 'unsaved'
   const [showPreview, setShowPreview] = useState(false)
+  const [showMoveModal, setShowMoveModal] = useState(false)
+  const [moving, setMoving] = useState(false)
   const [error, setError] = useState(null)
   const autoSaveTimer = useRef(null)
   const isMounted = useRef(true)
@@ -156,6 +158,34 @@ function NoteEditor() {
     }
   }
 
+  const moveNote = async (targetFolder) => {
+    if (targetFolder === folder) return
+
+    setMoving(true)
+    try {
+      const res = await fetch(`${API_BASE}/notes/move/${folder}/${filename}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ target_folder: targetFolder }),
+      })
+
+      if (res.ok) {
+        navigate(`/notes/${targetFolder}/${filename}`)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        const msg = typeof data?.detail === 'object' ? data.detail.message : 'Failed to move note'
+        alert(typeof msg === 'string' ? msg : 'Failed to move note')
+      }
+    } catch (err) {
+      console.error('Failed to move note:', err)
+      alert('Failed to move note')
+    } finally {
+      setMoving(false)
+      setShowMoveModal(false)
+    }
+  }
+
   const hasChanges = content !== originalContent
 
   const getSaveButtonText = () => {
@@ -225,6 +255,9 @@ function NoteEditor() {
             >
               {getSaveButtonText()}
             </button>
+            <button className="btn btn-secondary" onClick={() => setShowMoveModal(true)}>
+              Move
+            </button>
             <button className="btn btn-danger" onClick={deleteNote}>
               Delete
             </button>
@@ -247,6 +280,38 @@ function NoteEditor() {
           />
         )}
       </div>
+
+      {showMoveModal && (
+        <div className="modal-overlay" onClick={() => !moving && setShowMoveModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Move to folder</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+              {['Diary', 'Projects', 'Study', 'Inbox']
+                .filter((f) => f !== folder)
+                .map((f) => (
+                  <button
+                    key={f}
+                    className="btn btn-secondary"
+                    onClick={() => moveNote(f)}
+                    disabled={moving}
+                    style={{ width: '100%', justifyContent: 'center' }}
+                  >
+                    {moving ? 'Moving...' : f}
+                  </button>
+                ))}
+            </div>
+            <div className="modal-actions" style={{ marginTop: '16px' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowMoveModal(false)}
+                disabled={moving}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

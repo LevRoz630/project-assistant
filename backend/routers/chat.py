@@ -122,6 +122,7 @@ def _create_action_from_data(action_data: dict) -> dict | None:
         "create_task": ActionType.CREATE_TASK,
         "create_note": ActionType.CREATE_NOTE,
         "edit_note": ActionType.EDIT_NOTE,
+        "move_note": ActionType.MOVE_NOTE,
         "draft_email": ActionType.DRAFT_EMAIL,
     }
 
