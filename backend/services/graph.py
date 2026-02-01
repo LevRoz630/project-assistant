@@ -51,7 +51,7 @@ class GraphClient:
         """Get raw content from Graph API."""
         url = f"{GRAPH_BASE_URL}{endpoint}"
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
             response = await client.get(
                 url=url,
                 headers=self.headers,
