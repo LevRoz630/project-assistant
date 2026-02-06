@@ -1,11 +1,21 @@
 """AI Actions service for managing proposed actions that require approval."""
 
+import json
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel
+
+from ..auth import _get_redis
+
+logger = logging.getLogger(__name__)
+
+# Redis configuration
+ACTIONS_KEY_PREFIX = "actions:"
+ACTIONS_TTL = 60 * 60 * 24 * 7  # 7 days
 
 
 class ActionType(str, Enum):
@@ -103,11 +113,83 @@ class ProposedAction:
     error: str | None = None
 
 
+def _action_to_dict(action: ProposedAction) -> dict:
+    """Serialize ProposedAction to dict for JSON storage."""
+    return {
+        "id": action.id,
+        "type": action.type.value,
+        "status": action.status.value,
+        "data": action.data,
+        "reason": action.reason,
+        "created_at": action.created_at.isoformat(),
+        "updated_at": action.updated_at.isoformat(),
+        "error": action.error,
+    }
+
+
+def _dict_to_action(d: dict) -> ProposedAction:
+    """Deserialize dict to ProposedAction."""
+    return ProposedAction(
+        id=d["id"],
+        type=ActionType(d["type"]),
+        status=ActionStatus(d["status"]),
+        data=d["data"],
+        reason=d["reason"],
+        created_at=datetime.fromisoformat(d["created_at"]),
+        updated_at=datetime.fromisoformat(d["updated_at"]),
+        error=d.get("error"),
+    )
+
+
 class ActionStore:
-    """In-memory store for proposed actions."""
+    """Redis-backed store for proposed actions with memory fallback."""
 
     def __init__(self):
         self._actions: dict[str, ProposedAction] = {}
+        self._load_from_redis()
+
+    def _load_from_redis(self):
+        """Load actions from Redis on startup."""
+        redis = _get_redis()
+        if not redis:
+            return
+
+        try:
+            # Get all action keys
+            keys = redis.keys(f"{ACTIONS_KEY_PREFIX}*")
+            for key in keys:
+                data = redis.get(key)
+                if data:
+                    action_dict = json.loads(data)
+                    action = _dict_to_action(action_dict)
+                    self._actions[action.id] = action
+            if keys:
+                logger.info(f"Loaded {len(keys)} actions from Redis")
+        except Exception as e:
+            logger.warning(f"Failed to load actions from Redis: {e}")
+
+    def _save_to_redis(self, action: ProposedAction):
+        """Save a single action to Redis."""
+        redis = _get_redis()
+        if not redis:
+            return
+
+        try:
+            key = f"{ACTIONS_KEY_PREFIX}{action.id}"
+            redis.setex(key, ACTIONS_TTL, json.dumps(_action_to_dict(action)))
+        except Exception as e:
+            logger.warning(f"Failed to save action to Redis: {e}")
+
+    def _delete_from_redis(self, action_id: str):
+        """Delete an action from Redis."""
+        redis = _get_redis()
+        if not redis:
+            return
+
+        try:
+            redis.delete(f"{ACTIONS_KEY_PREFIX}{action_id}")
+        except Exception as e:
+            logger.warning(f"Failed to delete action from Redis: {e}")
 
     def create(
         self,
@@ -130,6 +212,7 @@ class ActionStore:
         )
 
         self._actions[action_id] = action
+        self._save_to_redis(action)
         return action
 
     def get(self, action_id: str) -> ProposedAction | None:
@@ -162,12 +245,14 @@ class ActionStore:
             action.updated_at = datetime.now()
             if error:
                 action.error = error
+            self._save_to_redis(action)
         return action
 
     def delete(self, action_id: str) -> bool:
         """Delete an action."""
         if action_id in self._actions:
             del self._actions[action_id]
+            self._delete_from_redis(action_id)
             return True
         return False
 
@@ -182,6 +267,7 @@ class ActionStore:
         ]
         for action_id in to_delete:
             del self._actions[action_id]
+            self._delete_from_redis(action_id)
 
 
 # Global action store
