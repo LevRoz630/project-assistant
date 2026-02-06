@@ -183,7 +183,7 @@ function Notes({ folderPath }) {
   }
 
   const createFolder = async () => {
-    if (!newFolderName.trim() || !currentPath) return
+    if (!newFolderName.trim()) return
 
     const validation = validateFolderName(newFolderName)
     if (validation) {
@@ -200,7 +200,7 @@ function Notes({ folderPath }) {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          parent_path: currentPath,
+          parent_path: currentPath || '',
           name: newFolderName,
         }),
       })
@@ -209,7 +209,11 @@ function Notes({ folderPath }) {
         setShowNewFolder(false)
         setNewFolderName('')
         setFolderValidationError(null)
-        loadNotes(currentPath)
+        if (currentPath) {
+          loadNotes(currentPath)
+        } else {
+          loadFolders()
+        }
       } else {
         const data = await res.json().catch(() => ({}))
         const { message } = parseError(data, res.status)
@@ -252,6 +256,62 @@ function Notes({ folderPath }) {
   // Build breadcrumb segments from currentPath
   const breadcrumbs = currentPath ? currentPath.split('/') : []
 
+  // New folder modal (shared between top-level and folder-contents views)
+  const newFolderModal = showNewFolder && (
+    <div className="modal-overlay" onClick={() => !creatingFolder && setShowNewFolder(false)}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>New Folder</h3>
+        {folderError && folderError.type === 'error' && (
+          <div style={{
+            padding: '10px 12px',
+            background: 'var(--error)',
+            color: 'white',
+            borderRadius: '6px',
+            marginBottom: '16px',
+            fontSize: '14px'
+          }}>
+            {typeof folderError.message === 'string' ? folderError.message : 'An error occurred'}
+          </div>
+        )}
+        <div className="form-group">
+          <label className="form-label">Folder Name</label>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="my-folder"
+            value={newFolderName}
+            onChange={handleFolderNameChange}
+            onKeyDown={(e) => e.key === 'Enter' && !creatingFolder && !folderValidationError && createFolder()}
+            disabled={creatingFolder}
+            autoFocus
+            style={folderValidationError ? { borderColor: 'var(--error)' } : {}}
+          />
+          {folderValidationError && (
+            <div style={{ color: 'var(--error)', fontSize: '13px', marginTop: '6px' }}>
+              {folderValidationError}
+            </div>
+          )}
+        </div>
+        <div className="modal-actions">
+          <button
+            className="btn btn-secondary"
+            onClick={() => { setShowNewFolder(false); setFolderValidationError(null); setFolderError(null); }}
+            disabled={creatingFolder}
+          >
+            Cancel
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={createFolder}
+            disabled={creatingFolder || !newFolderName.trim() || !!folderValidationError}
+          >
+            {creatingFolder ? 'Creating...' : 'Create'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
   // Top-level folder view (no path selected)
   if (!currentPath) {
     return (
@@ -259,6 +319,9 @@ function Notes({ folderPath }) {
         <div className="content-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2>Notes</h2>
+            <button className="btn btn-secondary" onClick={() => { setShowNewFolder(true); setFolderError(null); }}>
+              New Folder
+            </button>
           </div>
         </div>
 
@@ -286,6 +349,7 @@ function Notes({ folderPath }) {
               )}
             </div>
           </div>
+          {newFolderModal}
         </div>
       </>
     )
@@ -481,60 +545,7 @@ function Notes({ folderPath }) {
           </div>
         )}
 
-        {showNewFolder && (
-          <div className="modal-overlay" onClick={() => !creatingFolder && setShowNewFolder(false)}>
-            <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <h3>New Folder</h3>
-              {folderError && folderError.type === 'error' && (
-                <div style={{
-                  padding: '10px 12px',
-                  background: 'var(--error)',
-                  color: 'white',
-                  borderRadius: '6px',
-                  marginBottom: '16px',
-                  fontSize: '14px'
-                }}>
-                  {typeof folderError.message === 'string' ? folderError.message : 'An error occurred'}
-                </div>
-              )}
-              <div className="form-group">
-                <label className="form-label">Folder Name</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="my-folder"
-                  value={newFolderName}
-                  onChange={handleFolderNameChange}
-                  onKeyDown={(e) => e.key === 'Enter' && !creatingFolder && !folderValidationError && createFolder()}
-                  disabled={creatingFolder}
-                  autoFocus
-                  style={folderValidationError ? { borderColor: 'var(--error)' } : {}}
-                />
-                {folderValidationError && (
-                  <div style={{ color: 'var(--error)', fontSize: '13px', marginTop: '6px' }}>
-                    {folderValidationError}
-                  </div>
-                )}
-              </div>
-              <div className="modal-actions">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => { setShowNewFolder(false); setFolderValidationError(null); setFolderError(null); }}
-                  disabled={creatingFolder}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={createFolder}
-                  disabled={creatingFolder || !newFolderName.trim() || !!folderValidationError}
-                >
-                  {creatingFolder ? 'Creating...' : 'Create'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {newFolderModal}
       </div>
     </>
   )

@@ -631,7 +631,7 @@ async def _ensure_folder_structure(client: GraphClient, specific_folder: str | N
 class FolderCreate(BaseModel):
     """Request body for creating a subfolder."""
 
-    parent_path: str  # e.g., "Projects" or "Projects/SubA"
+    parent_path: str = ""  # Empty string = top-level, or e.g., "Projects" or "Projects/SubA"
     name: str  # e.g., "SubB"
 
 
@@ -640,8 +640,9 @@ async def create_folder(
     body: FolderCreate,
     client: GraphClient = Depends(get_graph_client),
 ):
-    """Create a subfolder within the notes hierarchy."""
-    _validate_folder_path(body.parent_path, "parent_path")
+    """Create a folder within the notes hierarchy. Empty parent_path creates a top-level folder."""
+    if body.parent_path:
+        _validate_folder_path(body.parent_path, "parent_path")
     _validate_path_component(body.name, "folder name")
 
     # Reject hidden/system folder names
@@ -651,8 +652,12 @@ async def create_folder(
             detail={"code": "invalid_name", "message": "Folder name cannot start with '.' or '_'"}
         )
 
-    full_parent = f"{settings.onedrive_base_folder}/{body.parent_path}"
-    new_path = f"{body.parent_path}/{body.name}"
+    if body.parent_path:
+        full_parent = f"{settings.onedrive_base_folder}/{body.parent_path}"
+        new_path = f"{body.parent_path}/{body.name}"
+    else:
+        full_parent = settings.onedrive_base_folder
+        new_path = body.name
 
     try:
         await client.create_folder(full_parent, body.name)

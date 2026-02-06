@@ -32,7 +32,7 @@ os.environ.setdefault("GITHUB_USERNAME", "testuser")
 @pytest.fixture(scope="session")
 def app():
     """Create FastAPI application for testing."""
-    from main import app as fastapi_app
+    from backend.main import app as fastapi_app
 
     return fastapi_app
 
@@ -237,15 +237,15 @@ def mock_get_access_token(mock_access_token: str):
     # Need to patch at each router's import location, not at auth module
     patches = [
         # get_access_token imports
-        patch("routers.actions.get_access_token", return_value=mock_access_token),
-        patch("routers.chat.get_access_token", return_value=mock_access_token),
-        patch("routers.email.get_access_token", return_value=mock_access_token),
-        patch("routers.sync.get_access_token", return_value=mock_access_token),
+        patch("backend.routers.actions.get_access_token", return_value=mock_access_token),
+        patch("backend.routers.chat.get_access_token", return_value=mock_access_token),
+        patch("backend.routers.email.get_access_token", return_value=mock_access_token),
+        patch("backend.routers.sync.get_access_token", return_value=mock_access_token),
         # get_access_token_for_service imports
-        patch("routers.calendar.get_access_token_for_service", return_value=mock_access_token),
-        patch("routers.notes.get_access_token_for_service", return_value=mock_access_token),
-        patch("routers.onenote.get_access_token_for_service", return_value=mock_access_token),
-        patch("routers.tasks.get_access_token_for_service", return_value=mock_access_token),
+        patch("backend.routers.calendar.get_access_token_for_service", return_value=mock_access_token),
+        patch("backend.routers.notes.get_access_token_for_service", return_value=mock_access_token),
+        patch("backend.routers.onenote.get_access_token_for_service", return_value=mock_access_token),
+        patch("backend.routers.tasks.get_access_token_for_service", return_value=mock_access_token),
     ]
 
     for p in patches:
