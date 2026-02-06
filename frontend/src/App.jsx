@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, NavLink, useNavigate } from 'react-router-dom'
+import { Routes, Route, NavLink, useNavigate, useParams } from 'react-router-dom'
 import Chat from './components/Chat'
 import Notes from './components/Notes'
 import NoteEditor from './components/NoteEditor'
@@ -210,7 +210,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Chat />} />
             <Route path="/notes" element={<Notes />} />
-            <Route path="/notes/:folder/:filename" element={<NoteEditor />} />
+            <Route path="/notes/*" element={<NotesRouter />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/email" element={<Email />} />
@@ -221,6 +221,20 @@ function App() {
       </main>
     </div>
   )
+}
+
+function NotesRouter() {
+  const params = useParams()
+  const splatPath = params['*'] || ''
+
+  if (splatPath.endsWith('.md')) {
+    const lastSlash = splatPath.lastIndexOf('/')
+    const folder = splatPath.substring(0, lastSlash)
+    const filename = splatPath.substring(lastSlash + 1)
+    return <NoteEditor folder={folder} filename={filename} />
+  }
+
+  return <Notes folderPath={splatPath} />
 }
 
 // Icons

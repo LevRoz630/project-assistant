@@ -90,6 +90,61 @@
   color: var(--text-secondary);
 }
 
+/* Breadcrumbs */
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  font-size: var(--text-base);
+}
+
+.breadcrumb-item {
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: all var(--transition-normal);
+}
+
+.breadcrumb-item:hover {
+  color: var(--text-primary);
+  background: var(--glass-bg);
+}
+
+.breadcrumb-item.breadcrumb-active {
+  color: var(--text-primary);
+  cursor: default;
+  font-weight: 500;
+}
+
+.breadcrumb-item.breadcrumb-active:hover {
+  background: none;
+}
+
+.breadcrumb-separator {
+  color: var(--text-secondary);
+  opacity: 0.5;
+  margin: 0 2px;
+  user-select: none;
+}
+
+/* Subfolder items */
+.subfolder-item {
+  border-left: 3px solid var(--accent);
+}
+
+.subfolder-item .note-icon {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.subfolder-chevron {
+  color: var(--text-secondary);
+  opacity: 0.5;
+  margin-left: auto;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;

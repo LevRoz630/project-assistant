@@ -750,40 +750,59 @@ async def ingest_all_notes(request: Request):
     ingested = 0
     errors = []
 
-    # Get all folders
+    # Recursively scan folders and ingest notes
+    async def _scan_and_ingest(folder_path: str, relative_path: str, depth: int = 0):
+        nonlocal ingested
+        if depth > 5:
+            return
+
+        try:
+            result = await client.list_folder(folder_path)
+        except Exception as e:
+            errors.append(f"Folder {relative_path}: {e!s}")
+            return
+
+        for item in result.get("value", []):
+            name = item["name"]
+
+            # Recurse into subfolders (skip hidden/system)
+            if "folder" in item:
+                if not name.startswith("_") and not name.startswith("."):
+                    await _scan_and_ingest(
+                        f"{folder_path}/{name}",
+                        f"{relative_path}/{name}" if relative_path else name,
+                        depth + 1,
+                    )
+                continue
+
+            if "file" not in item or not name.endswith(".md"):
+                continue
+
+            try:
+                note_path = f"{folder_path}/{name}"
+                content = await client.get_file_content(note_path)
+
+                await ingest_document(
+                    content=content.decode("utf-8"),
+                    source_path=note_path,
+                    metadata={"folder": relative_path, "filename": name},
+                )
+                ingested += 1
+            except Exception as e:
+                errors.append(f"{relative_path}/{name}: {e!s}")
+
+    # Get top-level folders
     try:
         folders_result = await client.list_folder(settings.onedrive_base_folder)
-        folders = [item["name"] for item in folders_result.get("value", []) if "folder" in item]
+        top_folders = [
+            item["name"] for item in folders_result.get("value", [])
+            if "folder" in item and not item["name"].startswith("_") and not item["name"].startswith(".")
+        ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list folders: {e}") from e
 
-    # Ingest notes from each folder
-    for folder in folders:
-        if folder.startswith("_"):  # Skip system folders like _index
-            continue
-
-        try:
-            folder_path = f"{settings.onedrive_base_folder}/{folder}"
-            notes_result = await client.list_folder(folder_path)
-
-            for item in notes_result.get("value", []):
-                if "file" not in item or not item["name"].endswith(".md"):
-                    continue
-
-                try:
-                    note_path = f"{folder_path}/{item['name']}"
-                    content = await client.get_file_content(note_path)
-
-                    await ingest_document(
-                        content=content.decode("utf-8"),
-                        source_path=note_path,
-                        metadata={"folder": folder, "filename": item["name"]},
-                    )
-                    ingested += 1
-                except Exception as e:
-                    errors.append(f"{folder}/{item['name']}: {e!s}")
-        except Exception as e:
-            errors.append(f"Folder {folder}: {e!s}")
+    for folder_name in top_folders:
+        await _scan_and_ingest(f"{settings.onedrive_base_folder}/{folder_name}", folder_name)
 
     return {
         "ingested": ingested,

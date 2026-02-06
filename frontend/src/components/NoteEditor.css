@@ -135,3 +135,46 @@
   margin-right: 8px;
   transform: scale(1.1);
 }
+
+/* Folder tree (move modal) */
+.folder-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.folder-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folder-tree-toggle {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  transition: transform 0.15s;
+}
+
+.folder-tree-toggle.expanded {
+  transform: rotate(90deg);
+}
+
+.folder-tree-spacer {
+  width: 16px;
+}
+
+.folder-tree-btn {
+  flex: 1;
+  justify-content: flex-start;
+  font-size: 14px;
+  padding: 8px 12px;
+}
+
+.folder-tree-btn.current {
+  opacity: 0.5;
+}

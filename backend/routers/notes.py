@@ -84,6 +84,40 @@ def _validate_path_component(value: str, field_name: str, is_filename: bool = Fa
     return value
 
 
+def _validate_folder_path(value: str, field_name: str = "folder") -> str:
+    """Validate a multi-segment folder path like 'Projects/SubA/SubB'."""
+    if not value:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "invalid_input", "message": f"{field_name} cannot be empty"}
+        )
+    segments = value.split("/")
+    if len(segments) > 6:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "path_too_deep", "message": f"Invalid {field_name}: path too deep (max 6 levels)"}
+        )
+    for segment in segments:
+        if not segment:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "invalid_input", "message": f"Invalid {field_name}: empty path segment"}
+            )
+        _validate_path_component(segment, field_name)
+    return value
+
+
+def _split_item_path(item_path: str) -> tuple[str, str]:
+    """Split 'Projects/SubA/note.md' into ('Projects/SubA', 'note.md')."""
+    if "/" not in item_path:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "invalid_path", "message": "Path must contain at least a folder and filename"}
+        )
+    folder, filename = item_path.rsplit("/", 1)
+    return folder, filename
+
+
 def get_graph_client(request: Request) -> GraphClient:
     """Dependency to get authenticated Graph client for notes/storage."""
     session_id = request.cookies.get("session_id")
@@ -102,7 +136,7 @@ def get_graph_client(request: Request) -> GraphClient:
 class NoteCreate(BaseModel):
     """Request body for creating a note."""
 
-    folder: str  # e.g., "Diary", "Projects", "Study", "Inbox"
+    folder: str  # e.g., "Diary", "Projects", "Projects/SubA"
     filename: str  # e.g., "2026-01-21.md" or "my-note.md"
     content: str
 
@@ -148,19 +182,19 @@ async def list_folders(client: GraphClient = Depends(get_graph_client)):
         ) from e
 
 
-@router.get("/list/{folder}")
-async def list_notes(folder: str, client: GraphClient = Depends(get_graph_client)):
-    """List all notes in a folder."""
-    _validate_path_component(folder, "folder")
+@router.get("/list/{folder_path:path}")
+async def list_notes(folder_path: str, client: GraphClient = Depends(get_graph_client)):
+    """List all notes and subfolders in a folder."""
+    _validate_folder_path(folder_path, "folder")
     try:
-        folder_path = f"{settings.onedrive_base_folder}/{folder}"
-        result = await client.list_folder(folder_path)
+        full_path = f"{settings.onedrive_base_folder}/{folder_path}"
+        result = await client.list_folder(full_path)
 
         notes = [
             {
                 "name": item["name"],
                 "id": item["id"],
-                "path": f"{folder}/{item['name']}",
+                "path": f"{folder_path}/{item['name']}",
                 "size": item.get("size", 0),
                 "created": item.get("createdDateTime"),
                 "modified": item.get("lastModifiedDateTime"),
@@ -169,28 +203,41 @@ async def list_notes(folder: str, client: GraphClient = Depends(get_graph_client
             if "file" in item and item["name"].endswith(".md")
         ]
 
+        subfolders = [
+            {
+                "name": item["name"],
+                "path": f"{folder_path}/{item['name']}",
+                "childCount": item.get("folder", {}).get("childCount", 0),
+            }
+            for item in result.get("value", [])
+            if "folder" in item
+            and not item["name"].startswith(".")
+            and not item["name"].startswith("_")
+        ]
+
         # Sort by modified date, newest first
         notes.sort(key=lambda x: x.get("modified", ""), reverse=True)
+        subfolders.sort(key=lambda x: x["name"].lower())
 
-        return {"folder": folder, "notes": notes}
+        return {"folder": folder_path, "notes": notes, "subfolders": subfolders}
     except Exception as e:
         error_str = str(e).lower()
         if "itemnotfound" in error_str or "404" in error_str:
-            return {"folder": folder, "notes": []}
+            return {"folder": folder_path, "notes": [], "subfolders": []}
         raise HTTPException(
             status_code=500,
             detail={"code": "server_error", "message": safe_error_message(e, "List notes")}
         ) from e
 
 
-@router.get("/content/{folder}/{filename:path}")
+@router.get("/content/{item_path:path}")
 async def get_note(
-    folder: str,
-    filename: str,
+    item_path: str,
     client: GraphClient = Depends(get_graph_client),
 ):
     """Get the content of a note. Returns 404 if not found."""
-    _validate_path_component(folder, "folder")
+    folder, filename = _split_item_path(item_path)
+    _validate_folder_path(folder, "folder")
     _validate_path_component(filename, "filename", is_filename=True)
     note_path = get_note_path(folder, filename)
 
@@ -284,7 +331,7 @@ async def create_note(
     client: GraphClient = Depends(get_graph_client),
 ):
     """Create a new note."""
-    _validate_path_component(note.folder, "folder")
+    _validate_folder_path(note.folder, "folder")
     _validate_path_component(note.filename, "filename", is_filename=True)
 
     # Auto-append .md extension if missing
@@ -350,15 +397,15 @@ async def create_note(
         ) from e
 
 
-@router.put("/update/{folder}/{filename:path}")
+@router.put("/update/{item_path:path}")
 async def update_note(
-    folder: str,
-    filename: str,
+    item_path: str,
     note: NoteUpdate,
     client: GraphClient = Depends(get_graph_client),
 ):
     """Update an existing note."""
-    _validate_path_component(folder, "folder")
+    folder, filename = _split_item_path(item_path)
+    _validate_folder_path(folder, "folder")
     _validate_path_component(filename, "filename", is_filename=True)
     try:
         note_path = get_note_path(folder, filename)
@@ -397,14 +444,14 @@ async def update_note(
         ) from e
 
 
-@router.delete("/delete/{folder}/{filename:path}")
+@router.delete("/delete/{item_path:path}")
 async def delete_note(
-    folder: str,
-    filename: str,
+    item_path: str,
     client: GraphClient = Depends(get_graph_client),
 ):
     """Delete a note."""
-    _validate_path_component(folder, "folder")
+    folder, filename = _split_item_path(item_path)
+    _validate_folder_path(folder, "folder")
     _validate_path_component(filename, "filename", is_filename=True)
     try:
         note_path = get_note_path(folder, filename)
@@ -432,16 +479,16 @@ class NoteMove(BaseModel):
     target_folder: str
 
 
-@router.post("/move/{folder}/{filename:path}")
+@router.post("/move/{item_path:path}")
 async def move_note(
-    folder: str,
-    filename: str,
+    item_path: str,
     move: NoteMove,
     client: GraphClient = Depends(get_graph_client),
 ):
     """Move a note to a different folder."""
-    _validate_path_component(folder, "source folder")
-    _validate_path_component(move.target_folder, "target folder")
+    folder, filename = _split_item_path(item_path)
+    _validate_folder_path(folder, "source folder")
+    _validate_folder_path(move.target_folder, "target folder")
     _validate_path_component(filename, "filename", is_filename=True)
 
     if folder == move.target_folder:
@@ -454,6 +501,9 @@ async def move_note(
     target_folder_path = f"{settings.onedrive_base_folder}/{move.target_folder}"
 
     try:
+        # Ensure target folder exists
+        await _ensure_folder_structure(client, move.target_folder)
+
         # Move file in OneDrive
         result = await client.move_item(source_path, target_folder_path, filename)
 
@@ -553,7 +603,7 @@ async def create_today_diary(
 
 
 async def _ensure_folder_structure(client: GraphClient, specific_folder: str | None = None):
-    """Ensure the PersonalAI folder structure exists."""
+    """Ensure the PersonalAI folder structure exists. Handles nested paths like 'Projects/SubA/SubB'."""
     base = settings.onedrive_base_folder
     folders = [specific_folder] if specific_folder else ["Diary", "Projects", "Study", "Inbox", "_system"]
 
@@ -564,13 +614,97 @@ async def _ensure_folder_structure(client: GraphClient, specific_folder: str | N
         with contextlib.suppress(Exception):
             await client.create_folder("", base)
 
-    # Create subfolders
+    # Create subfolders, handling nested paths
     for folder in folders:
+        segments = folder.split("/")
+        current_path = base
+        for segment in segments:
+            next_path = f"{current_path}/{segment}"
+            try:
+                await client.get_item_by_path(next_path)
+            except Exception:
+                with contextlib.suppress(Exception):
+                    await client.create_folder(current_path, segment)
+            current_path = next_path
+
+
+class FolderCreate(BaseModel):
+    """Request body for creating a subfolder."""
+
+    parent_path: str  # e.g., "Projects" or "Projects/SubA"
+    name: str  # e.g., "SubB"
+
+
+@router.post("/create-folder")
+async def create_folder(
+    body: FolderCreate,
+    client: GraphClient = Depends(get_graph_client),
+):
+    """Create a subfolder within the notes hierarchy."""
+    _validate_folder_path(body.parent_path, "parent_path")
+    _validate_path_component(body.name, "folder name")
+
+    # Reject hidden/system folder names
+    if body.name.startswith(".") or body.name.startswith("_"):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "invalid_name", "message": "Folder name cannot start with '.' or '_'"}
+        )
+
+    full_parent = f"{settings.onedrive_base_folder}/{body.parent_path}"
+    new_path = f"{body.parent_path}/{body.name}"
+
+    try:
+        await client.create_folder(full_parent, body.name)
+        return {"success": True, "name": body.name, "path": new_path}
+    except Exception as e:
+        error_str = str(e).lower()
+        if "namealreadyexists" in error_str or "conflict" in error_str:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "already_exists", "message": f"Folder '{body.name}' already exists"}
+            ) from e
+        if "itemnotfound" in error_str or "404" in error_str:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "parent_not_found", "message": f"Parent folder '{body.parent_path}' not found"}
+            ) from e
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "server_error", "message": safe_error_message(e, "Create folder")}
+        ) from e
+
+
+@router.get("/folder-tree")
+async def get_folder_tree(client: GraphClient = Depends(get_graph_client)):
+    """Get the full folder tree for the notes hierarchy (max depth 5)."""
+    base = settings.onedrive_base_folder
+
+    async def _scan_tree(path: str, depth: int) -> list[dict]:
+        if depth > 5:
+            return []
         try:
-            await client.get_item_by_path(f"{base}/{folder}")
+            result = await client.list_folder(path)
         except Exception:
-            with contextlib.suppress(Exception):
-                await client.create_folder(base, folder)
+            return []
+
+        folders = []
+        for item in result.get("value", []):
+            if "folder" not in item:
+                continue
+            name = item["name"]
+            if name.startswith(".") or name.startswith("_"):
+                continue
+            rel_path = f"{path}/{name}"
+            # Strip the base folder prefix to get the relative path
+            relative = rel_path[len(base) + 1:]
+            children = await _scan_tree(rel_path, depth + 1)
+            folders.append({"name": name, "path": relative, "children": children})
+        folders.sort(key=lambda x: x["name"].lower())
+        return folders
+
+    tree = await _scan_tree(base, 0)
+    return {"tree": tree}
 
 
 @router.post("/init")

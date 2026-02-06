@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import './NoteEditor.css'
-import { API_BASE } from '../config'
+import { API_BASE, encodePath } from '../config'
 
 const AUTO_SAVE_DELAY = 2000 // 2 seconds
 
-function NoteEditor() {
-  const { folder, filename } = useParams()
+function NoteEditor({ folder, filename }) {
   const navigate = useNavigate()
   const [content, setContent] = useState('')
   const [originalContent, setOriginalContent] = useState('')
@@ -18,6 +17,8 @@ function NoteEditor() {
   const [showMoveModal, setShowMoveModal] = useState(false)
   const [moving, setMoving] = useState(false)
   const [error, setError] = useState(null)
+  const [folderTree, setFolderTree] = useState([])
+  const [loadingTree, setLoadingTree] = useState(false)
   const autoSaveTimer = useRef(null)
   const isMounted = useRef(true)
 
@@ -41,7 +42,7 @@ function NoteEditor() {
     setError(null)
     setSaveStatus('saved')
     try {
-      const res = await fetch(`${API_BASE}/notes/content/${folder}/${filename}`, {
+      const res = await fetch(`${API_BASE}/notes/content/${encodePath(folder)}/${encodeURIComponent(filename)}`, {
         credentials: 'include',
       })
 
@@ -52,7 +53,6 @@ function NoteEditor() {
       } else if (res.status === 404) {
         const data = await res.json().catch(() => ({}))
         const msg = typeof data?.detail === 'object' ? data.detail.message : 'Note not found'
-        // Ensure error message is always a string
         setError(typeof msg === 'string' ? msg : 'Note not found')
       } else {
         throw new Error('Failed to load note')
@@ -71,7 +71,7 @@ function NoteEditor() {
     setSaving(true)
     setSaveStatus('saving')
     try {
-      const res = await fetch(`${API_BASE}/notes/update/${folder}/${filename}`, {
+      const res = await fetch(`${API_BASE}/notes/update/${encodePath(folder)}/${encodeURIComponent(filename)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -142,13 +142,13 @@ function NoteEditor() {
     if (!confirm('Are you sure you want to delete this note?')) return
 
     try {
-      const res = await fetch(`${API_BASE}/notes/delete/${folder}/${filename}`, {
+      const res = await fetch(`${API_BASE}/notes/delete/${encodePath(folder)}/${encodeURIComponent(filename)}`, {
         method: 'DELETE',
         credentials: 'include',
       })
 
       if (res.ok) {
-        navigate('/notes')
+        navigate(`/notes/${encodePath(folder)}`)
       } else {
         throw new Error('Failed to delete note')
       }
@@ -158,12 +158,34 @@ function NoteEditor() {
     }
   }
 
+  const loadFolderTree = async () => {
+    setLoadingTree(true)
+    try {
+      const res = await fetch(`${API_BASE}/notes/folder-tree`, {
+        credentials: 'include',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setFolderTree(data.tree || [])
+      }
+    } catch (err) {
+      console.error('Failed to load folder tree:', err)
+    } finally {
+      setLoadingTree(false)
+    }
+  }
+
+  const openMoveModal = () => {
+    setShowMoveModal(true)
+    loadFolderTree()
+  }
+
   const moveNote = async (targetFolder) => {
     if (targetFolder === folder) return
 
     setMoving(true)
     try {
-      const res = await fetch(`${API_BASE}/notes/move/${folder}/${filename}`, {
+      const res = await fetch(`${API_BASE}/notes/move/${encodePath(folder)}/${encodeURIComponent(filename)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -171,7 +193,7 @@ function NoteEditor() {
       })
 
       if (res.ok) {
-        navigate(`/notes/${targetFolder}/${filename}`)
+        navigate(`/notes/${encodePath(targetFolder)}/${encodeURIComponent(filename)}`)
       } else {
         const data = await res.json().catch(() => ({}))
         const msg = typeof data?.detail === 'object' ? data.detail.message : 'Failed to move note'
@@ -197,6 +219,9 @@ function NoteEditor() {
     }
   }
 
+  // Breadcrumb segments for the folder path
+  const folderSegments = folder.split('/')
+
   if (loading) {
     return (
       <>
@@ -221,7 +246,7 @@ function NoteEditor() {
         <div className="content-body">
           <div className="empty-state">
             <h3>{typeof error === 'string' ? error : 'An error occurred'}</h3>
-            <button className="btn btn-primary" onClick={() => navigate('/notes')}>
+            <button className="btn btn-primary" onClick={() => navigate(`/notes/${encodePath(folder)}`)}>
               Back to Notes
             </button>
           </div>
@@ -235,11 +260,11 @@ function NoteEditor() {
       <div className="content-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button className="btn btn-secondary" onClick={() => navigate('/notes')}>
-              ← Back
+            <button className="btn btn-secondary" onClick={() => navigate(`/notes/${encodePath(folder)}`)}>
+              &#8592; Back
             </button>
             <h2>{filename.replace('.md', '')}</h2>
-            <span className="folder-badge">{folder}</span>
+            <span className="folder-badge">{folderSegments[folderSegments.length - 1]}</span>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button
@@ -255,7 +280,7 @@ function NoteEditor() {
             >
               {getSaveButtonText()}
             </button>
-            <button className="btn btn-secondary" onClick={() => setShowMoveModal(true)}>
+            <button className="btn btn-secondary" onClick={openMoveModal}>
               Move
             </button>
             <button className="btn btn-danger" onClick={deleteNote}>
@@ -285,20 +310,20 @@ function NoteEditor() {
         <div className="modal-overlay" onClick={() => !moving && setShowMoveModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Move to folder</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
-              {['Diary', 'Projects', 'Study', 'Inbox']
-                .filter((f) => f !== folder)
-                .map((f) => (
-                  <button
-                    key={f}
-                    className="btn btn-secondary"
-                    onClick={() => moveNote(f)}
-                    disabled={moving}
-                    style={{ width: '100%', justifyContent: 'center' }}
-                  >
-                    {moving ? 'Moving...' : f}
-                  </button>
-                ))}
+            <div style={{ marginTop: '16px', maxHeight: '400px', overflowY: 'auto' }}>
+              {loadingTree ? (
+                <div className="loading">
+                  <div className="loading-spinner"></div>
+                </div>
+              ) : (
+                <FolderTreeView
+                  nodes={folderTree}
+                  currentFolder={folder}
+                  onSelect={moveNote}
+                  moving={moving}
+                  depth={0}
+                />
+              )}
             </div>
             <div className="modal-actions" style={{ marginTop: '16px' }}>
               <button
@@ -313,6 +338,59 @@ function NoteEditor() {
         </div>
       )}
     </>
+  )
+}
+
+function FolderTreeView({ nodes, currentFolder, onSelect, moving, depth }) {
+  const [expanded, setExpanded] = useState({})
+
+  const toggle = (path) => {
+    setExpanded(prev => ({ ...prev, [path]: !prev[path] }))
+  }
+
+  return (
+    <div className="folder-tree">
+      {nodes.map((node) => {
+        const isCurrent = node.path === currentFolder
+        const hasChildren = node.children && node.children.length > 0
+        const isExpanded = expanded[node.path]
+
+        return (
+          <div key={node.path}>
+            <div className="folder-tree-row" style={{ paddingLeft: `${depth * 20}px` }}>
+              {hasChildren ? (
+                <button
+                  className={`folder-tree-toggle ${isExpanded ? 'expanded' : ''}`}
+                  onClick={() => toggle(node.path)}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+              ) : (
+                <span className="folder-tree-spacer" />
+              )}
+              <button
+                className={`btn btn-secondary folder-tree-btn ${isCurrent ? 'current' : ''}`}
+                onClick={() => onSelect(node.path)}
+                disabled={moving || isCurrent}
+              >
+                {node.name}{isCurrent ? ' (current)' : ''}
+              </button>
+            </div>
+            {hasChildren && isExpanded && (
+              <FolderTreeView
+                nodes={node.children}
+                currentFolder={currentFolder}
+                onSelect={onSelect}
+                moving={moving}
+                depth={depth + 1}
+              />
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
