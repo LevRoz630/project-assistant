@@ -70,7 +70,7 @@ Open http://localhost:5173
 docker-compose up --build
 
 # production
-docker build -f Dockerfile.fly -t project-assistant .
+docker build -t project-assistant .
 docker run -p 8080:8080 --env-file .env project-assistant
 ```
 

@@ -226,7 +226,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Deployment configs (use railway.toml, render.yaml, etc. only if explicitly needed)
-fly.toml
+# Deployment configs
 nixpacks.toml
 Procfile

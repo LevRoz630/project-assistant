@@ -90,9 +90,8 @@ project-assistant/
 ├── .env.example             # Environment template
 ├── requirements.txt         # Python dependencies
 ├── docker-compose.yml       # Development containers
-├── Dockerfile.fly           # Production container
+├── Dockerfile               # Production container
 ├── Dockerfile.dev           # Development container
-├── fly.toml                 # Fly.io deployment config
 ├── nginx.conf               # Production nginx config
 └── Makefile                 # Development commands
 ```
@@ -255,11 +254,11 @@ Multiple defense mechanisms:
 └─────────────────────────────────────────┘
 ```
 
-### Production (Fly.io)
+### Production (Railway)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Fly.io Machine                          │
+│                     Railway Service                          │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │                    nginx (:8080)                     │   │
 │  │  ┌──────────────┐  ┌──────────────────────────────┐  │   │
@@ -288,5 +287,5 @@ Multiple defense mechanisms:
 | Auth | MSAL (Microsoft), OAuth 2.0 |
 | HTTP Client | httpx, PyGithub, Telethon |
 | Web Scraping | BeautifulSoup, DuckDuckGo-Search |
-| Deployment | Docker, Fly.io, nginx |
+| Deployment | Docker, Railway, nginx |
 | Testing | pytest, Vitest |

@@ -8,7 +8,6 @@
 
 Optional:
 - **Docker** - For containerized deployment
-- **flyctl** - For Fly.io deployment
 
 ## Clone Repository
 
@@ -123,8 +122,7 @@ project-assistant/
 ├── .env.example
 ├── requirements.txt
 ├── docker-compose.yml
-├── Dockerfile.fly
-└── fly.toml
+└── Dockerfile
 ```
 
 ## Troubleshooting

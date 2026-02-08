@@ -95,7 +95,7 @@ FastAPI Backend
 - **Backend**: FastAPI (Python 3.11+) with LangChain
 - **Frontend**: React with TypeScript
 - **Vector Store**: ChromaDB for embeddings
-- **Deployment**: Docker, Fly.io
+- **Deployment**: Docker, Railway
 
 ## Deployment Options
 
@@ -113,12 +113,6 @@ cd frontend && npm run dev
 
 ```bash
 docker-compose up --build
-```
-
-### Fly.io
-
-```bash
-flyctl deploy
 ```
 
 ## Documentation

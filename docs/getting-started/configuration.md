@@ -170,24 +170,4 @@ For production deployments:
 2. Generate a secure `SECRET_KEY`
 3. Update `FRONTEND_URL` to your domain
 4. Update `AZURE_REDIRECT_URI` to your callback URL
-5. Configure HTTPS (handled by Fly.io or your reverse proxy)
-
-### Fly.io Environment
-
-Set secrets via CLI:
-
-```bash
-flyctl secrets set \
-  AZURE_CLIENT_ID=... \
-  AZURE_CLIENT_SECRET=... \
-  ANTHROPIC_API_KEY=... \
-  SECRET_KEY=...
-```
-
-Non-secret environment variables go in `fly.toml`:
-
-```toml
-[env]
-  DEBUG = "false"
-  FRONTEND_URL = "https://your-app.fly.dev"
-```
+5. Configure HTTPS (handled by Railway or your reverse proxy)

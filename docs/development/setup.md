@@ -101,7 +101,7 @@ docker build -f Dockerfile.dev -t project-assistant-dev .
 docker run -it -v $(pwd):/workspace project-assistant-dev
 ```
 
-Includes: Claude Code CLI, flyctl, gh, Node.js 20, Python 3.11.
+Includes: Claude Code CLI, gh, Node.js 20, Python 3.11.
 
 ## IDE Configuration
 

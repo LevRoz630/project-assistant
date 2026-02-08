@@ -1,6 +1,6 @@
 # Deployment
 
-This guide covers deploying the Personal AI Assistant using Docker and Fly.io.
+This guide covers deploying the Personal AI Assistant using Docker and Railway.
 
 ## Docker Deployment
 
@@ -32,7 +32,6 @@ docker run -it -v $(pwd):/workspace project-assistant-dev
 
 Included tools:
 - **claude** - Claude Code CLI
-- **flyctl** - Fly.io CLI
 - **gh** - GitHub CLI
 - **node/npm** - Node.js 20
 - **python3** - Python 3.11
@@ -44,7 +43,7 @@ Build a single production image that includes frontend, backend, and nginx:
 
 ```bash
 # Build
-docker build -f Dockerfile.fly -t project-assistant .
+docker build -t project-assistant .
 
 # Run
 docker run -p 8080:8080 --env-file .env project-assistant
@@ -60,157 +59,12 @@ The production image:
 ### Container Architecture
 
 ```
-Dockerfile.fly (Production)
+Dockerfile (Production)
 ├── Stage 1: Build frontend (node:20-alpine)
 │   └── npm ci && npm run build
 └── Stage 2: Runtime (python:3.11-slim)
     ├── nginx (serves frontend, proxies /api/ and /auth/)
     └── uvicorn (FastAPI backend on localhost:8000)
-```
-
-## Fly.io Deployment
-
-[Fly.io](https://fly.io) provides simple container deployment with persistent volumes.
-
-### Prerequisites
-
-1. Install flyctl: https://fly.io/docs/hands-on/install-flyctl/
-2. Create an account: `flyctl auth signup`
-3. Authenticate: `flyctl auth login`
-
-### Initial Setup
-
-1. Create the app:
-
-```bash
-flyctl apps create project-assistant
-```
-
-2. Create a persistent volume for ChromaDB data:
-
-```bash
-flyctl volumes create chromadb_data --region lhr --size 1
-```
-
-The volume persists across deployments and machine restarts.
-
-3. Set secrets (sensitive environment variables):
-
-```bash
-flyctl secrets set \
-  AZURE_CLIENT_ID=your-client-id \
-  AZURE_CLIENT_SECRET=your-client-secret \
-  ANTHROPIC_API_KEY=your-anthropic-key \
-  OPENAI_API_KEY=your-openai-key \
-  GOOGLE_API_KEY=your-google-key \
-  SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))") \
-  GITHUB_TOKEN=your-github-token
-```
-
-### Configuration (fly.toml)
-
-The `fly.toml` file configures the deployment:
-
-```toml
-app = "project-assistant"
-primary_region = "lhr"
-
-[build]
-  builder = "dockerfile"
-  dockerfile = "Dockerfile.fly"
-
-[env]
-  DEBUG = "false"
-  CHROMA_PERSIST_DIRECTORY = "/app/data/chroma"
-  FRONTEND_URL = "https://project-assistant.fly.dev"
-
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = "stop"
-  auto_start_machines = true
-
-[[vm]]
-  memory = "1gb"
-  cpu_kind = "shared"
-  cpus = 1
-
-[mounts]
-  source = "chromadb_data"
-  destination = "/app/data"
-```
-
-Key settings:
-- **primary_region**: Choose a region near you (lhr = London)
-- **auto_stop_machines**: Stops VM when idle to save costs
-- **memory**: 1GB recommended for LangChain/ChromaDB
-- **mounts**: Persists `/app/data` across deployments
-
-### Deploy
-
-```bash
-flyctl deploy
-```
-
-The app will be available at `https://project-assistant.fly.dev`
-
-### Post-Deployment
-
-1. **Update Azure Redirect URI**
-
-   Add the production callback URL to your Azure AD app:
-   - `https://project-assistant.fly.dev/auth/callback`
-
-2. **Check logs**
-
-```bash
-flyctl logs
-```
-
-3. **Open the app**
-
-```bash
-flyctl open
-```
-
-4. **Check status**
-
-```bash
-flyctl status
-```
-
-### Scaling
-
-Adjust resources in `fly.toml`:
-
-```toml
-[[vm]]
-  memory = "2gb"   # More memory for larger vector stores
-  cpu_kind = "shared"
-  cpus = 2
-```
-
-Then redeploy: `flyctl deploy`
-
-### Custom Domain
-
-1. Add a custom domain:
-
-```bash
-flyctl certs create your-domain.com
-```
-
-2. Update DNS with the provided CNAME
-3. Update `FRONTEND_URL` and Azure redirect URI
-
-### Monitoring
-
-View metrics in the Fly.io dashboard or via CLI:
-
-```bash
-flyctl dashboard
-flyctl status
-flyctl logs --app project-assistant
 ```
 
 ## Production Checklist
@@ -262,24 +116,11 @@ server {
 
 Check Docker build logs:
 ```bash
-flyctl logs --app project-assistant
-docker build -f Dockerfile.fly . 2>&1 | less
+docker build . 2>&1 | less
 ```
-
-### Volume Issues
-
-Verify volume is mounted:
-```bash
-flyctl ssh console
-ls -la /app/data
-```
-
-### Memory Issues
-
-Increase VM memory in `fly.toml` and redeploy.
 
 ### OAuth Callback Errors
 
 Verify redirect URI matches exactly in Azure AD:
 - Local: `http://localhost:8000/auth/callback`
-- Production: `https://your-app.fly.dev/auth/callback`
+- Production: `https://your-app.up.railway.app/auth/callback`

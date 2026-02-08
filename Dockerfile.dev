@@ -1,4 +1,4 @@
-# Full development container with Claude Code, flyctl, gh, and common tools
+# Full development container with Claude Code, gh, and common tools
 FROM debian:bookworm-slim
 
 # Avoid prompts during package installation
@@ -27,10 +27,6 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install flyctl
-RUN curl -L https://fly.io/install.sh | sh
-ENV PATH="/root/.fly/bin:${PATH}"
-
 # Install GitHub CLI
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
@@ -52,14 +48,12 @@ echo "========================================"\n\
 echo ""\n\
 echo "Available tools:"\n\
 echo "  claude    - Claude Code CLI"\n\
-echo "  flyctl    - Fly.io CLI"\n\
 echo "  gh        - GitHub CLI"\n\
 echo "  node/npm  - Node.js $(node -v)"\n\
 echo "  python3   - Python $(python3 --version | cut -d\" \" -f2)"\n\
 echo "  git       - $(git --version)"\n\
 echo ""\n\
 echo "Quick start:"\n\
-echo "  flyctl auth token         # Auth with Fly.io"\n\
 echo "  gh auth login             # Auth with GitHub"\n\
 echo "  claude                    # Start Claude Code"\n\
 echo "========================================"\n\
