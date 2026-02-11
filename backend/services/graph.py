@@ -331,6 +331,10 @@ class GraphClient:
 
         return await self._request("GET", "/me/messages", params=params)
 
+    async def delete_message(self, message_id: str) -> dict:
+        """Delete an email message (moves to Deleted Items)."""
+        return await self._request("DELETE", f"/me/messages/{message_id}")
+
     # ==================== OneNote ====================
 
     async def list_notebooks(self) -> dict:

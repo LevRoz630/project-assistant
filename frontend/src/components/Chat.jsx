@@ -19,6 +19,7 @@ function Chat() {
   const [savingHistory, setSavingHistory] = useState(false)
   const messagesEndRef = useRef(null)
   const saveTimeoutRef = useRef(null)
+  const abortControllerRef = useRef(null)
 
   // Load conversations from OneDrive on mount
   useEffect(() => {
@@ -159,6 +160,13 @@ function Chat() {
     setShowHistory(false)
   }
 
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!input.trim() || loading) return
@@ -168,8 +176,9 @@ function Chat() {
     setMessages(prev => [...prev, { role: 'user', content: userMessage }])
     setLoading(true)
 
-    // Create abort controller for timeout
+    // Create abort controller for user cancellation and timeout
     const controller = new AbortController()
+    abortControllerRef.current = controller
     const timeoutId = setTimeout(() => controller.abort(), 120000) // 2 minute timeout
 
     try {
@@ -189,6 +198,7 @@ function Chat() {
       })
 
       clearTimeout(timeoutId)
+      abortControllerRef.current = null
 
       if (res.status === 401) {
         // Session expired - redirect to login
@@ -232,12 +242,25 @@ function Chat() {
       ])
     } catch (error) {
       clearTimeout(timeoutId)
+      abortControllerRef.current = null
       console.error('Chat error:', error)
 
-      let errorMessage = 'Sorry, something went wrong. Please try again.'
+      // Don't show error message if user cancelled
       if (error.name === 'AbortError') {
-        errorMessage = 'The request took too long. The AI might be busy - please try again.'
-      } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+        // Check if it was a user cancellation (loading is still true means user clicked stop)
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: 'Request cancelled.',
+            error: true,
+          },
+        ])
+        return
+      }
+
+      let errorMessage = 'Sorry, something went wrong. Please try again.'
+      if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
         errorMessage = 'Network error. Please check your connection and try again.'
       } else if (error.message) {
         errorMessage = `Error: ${error.message}`
@@ -253,6 +276,7 @@ function Chat() {
       ])
     } finally {
       setLoading(false)
+      abortControllerRef.current = null
     }
   }
 
@@ -549,9 +573,15 @@ function Chat() {
             onChange={(e) => setInput(e.target.value)}
             disabled={loading}
           />
-          <button type="submit" className="btn btn-primary" disabled={loading || !input.trim()}>
-            Send
-          </button>
+          {loading ? (
+            <button type="button" className="btn btn-danger" onClick={handleCancel}>
+              Stop
+            </button>
+          ) : (
+            <button type="submit" className="btn btn-primary" disabled={!input.trim()}>
+              Send
+            </button>
+          )}
         </form>
       </div>
     </>

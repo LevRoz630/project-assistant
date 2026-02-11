@@ -51,12 +51,12 @@ SCOPES_BY_PURPOSE = {
         "Files.ReadWrite.All",
         "Tasks.ReadWrite",
         "Calendars.ReadWrite",
-        "Mail.Read",
+        "Mail.ReadWrite",
     ],
     ACCOUNT_PURPOSE_EMAIL: [
         "User.Read",
         "Calendars.ReadWrite",
-        "Mail.Read",
+        "Mail.ReadWrite",
     ],
     ACCOUNT_PURPOSE_STORAGE: [
         "User.Read",

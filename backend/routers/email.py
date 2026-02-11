@@ -242,3 +242,26 @@ async def get_folders(request: Request):
         raise HTTPException(
             status_code=500, detail=safe_error_message(e, "Fetch folders")
         ) from e
+
+
+@router.delete("/message/{message_id}")
+async def delete_message(request: Request, message_id: str):
+    """Delete an email message (moves to Deleted Items folder)."""
+    session_id = request.cookies.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    token = get_access_token(session_id)
+    if not token:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    client = GraphClient(token)
+
+    try:
+        await client.delete_message(message_id)
+        return {"success": True, "deleted": message_id}
+    except Exception as e:
+        logger.exception("Failed to delete email message")
+        raise HTTPException(
+            status_code=500, detail=safe_error_message(e, "Delete email")
+        ) from e

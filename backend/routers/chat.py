@@ -31,6 +31,11 @@ from ..services.context_cache import get_cached_context, set_cached_context
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+def _get_current_datetime() -> str:
+    """Get current date/time formatted for AI context."""
+    return datetime.now().strftime("%A, %B %d, %Y at %H:%M")
 settings = get_settings()
 
 
@@ -456,7 +461,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
                 calendar_context=calendar_context,
                 email_context=email_context,
                 chat_history=history,
-                current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                current_date=_get_current_datetime(),
                 role=role,
             ),
             timeout=90.0  # 90 second timeout for LLM response
@@ -499,7 +504,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
                             calendar_context=calendar_context,
                             email_context=email_context,
                             chat_history=history,
-                            current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            current_date=_get_current_datetime(),
                             role=role,
                         ),
                         timeout=90.0
@@ -540,7 +545,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
                             calendar_context=calendar_context,
                             email_context=email_context,
                             chat_history=history,
-                            current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            current_date=_get_current_datetime(),
                             role=role,
                         ),
                         timeout=90.0
@@ -700,7 +705,7 @@ async def stream_message(request: Request, chat_request: ChatRequest):
                 calendar_context=calendar_context,
                 email_context=email_context,
                 chat_history=history,
-                current_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                current_date=_get_current_datetime(),
                 role=role,
             ):
                 yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"

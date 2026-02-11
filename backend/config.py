@@ -25,7 +25,7 @@ class Settings(BaseSettings):
         "Files.ReadWrite.All",  # OneDrive
         "Tasks.ReadWrite",  # Microsoft To Do
         "Calendars.ReadWrite",  # Calendar
-        "Mail.Read",  # Email (read only)
+        "Mail.ReadWrite",  # Email (read and delete)
         "Notes.ReadWrite",  # OneNote
     ]
 
