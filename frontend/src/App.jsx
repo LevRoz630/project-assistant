@@ -32,11 +32,27 @@ function App() {
         setUser(data)
         // Also fetch accounts info
         loadAccounts()
+        // Preload chat context cache in background for faster first message
+        preloadChatContext()
       }
     } catch (error) {
       console.error('Auth check failed:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const preloadChatContext = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/chat/preload`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        console.warn('Context preload failed:', res.status)
+      }
+    } catch (error) {
+      console.warn('Context preload failed:', error)
     }
   }
 
