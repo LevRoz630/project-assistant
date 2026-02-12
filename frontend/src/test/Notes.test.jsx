@@ -19,6 +19,56 @@ describe('Notes Component', () => {
     mockNavigate.mockClear()
   })
 
+  describe('Folder List View', () => {
+    it('shows folders when API returns 200', async () => {
+      global.fetch = vi.fn((url) => {
+        if (url.includes('/notes/folders')) {
+          return mockFetchResponse({ folders: [{ name: 'Diary' }, { name: 'Inbox' }] })
+        }
+        return mockFetchResponse({})
+      })
+
+      renderWithRouter(<Notes />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Diary')).toBeInTheDocument()
+        expect(screen.getByText('Inbox')).toBeInTheDocument()
+      })
+    })
+
+    it('shows session expired message on 401', async () => {
+      global.fetch = vi.fn((url) => {
+        if (url.includes('/notes/folders')) {
+          return mockFetchResponse({ detail: 'Not authenticated' }, 401)
+        }
+        return mockFetchResponse({})
+      })
+
+      renderWithRouter(<Notes />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Session expired')).toBeInTheDocument()
+        expect(screen.getByText(/sign in again/i)).toBeInTheDocument()
+        expect(screen.getByText('Sign in')).toBeInTheDocument()
+      })
+    })
+
+    it('shows session expired on 401 inside a folder', async () => {
+      global.fetch = vi.fn((url) => {
+        if (url.includes('/notes/list/')) {
+          return mockFetchResponse({ detail: 'Not authenticated' }, 401)
+        }
+        return mockFetchResponse({})
+      })
+
+      renderWithRouter(<Notes folderPath="Diary" />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Session expired')).toBeInTheDocument()
+      })
+    })
+  })
+
   describe('Note Creation Validation', () => {
     beforeEach(() => {
       global.fetch = vi.fn((url) => {
@@ -26,35 +76,31 @@ describe('Notes Component', () => {
           return mockFetchResponse({ folders: ['Diary', 'Inbox'] })
         }
         if (url.includes('/notes/list/')) {
-          return mockFetchResponse({ notes: [] })
+          return mockFetchResponse({ notes: [], subfolders: [] })
         }
         return mockFetchResponse({})
       })
     })
 
     it('shows error for invalid characters in name', async () => {
-      renderWithRouter(<Notes />)
+      renderWithRouter(<Notes folderPath="Diary" />)
 
-      // Wait for initial load
       await waitFor(() => {
         expect(screen.getByText('New Note')).toBeInTheDocument()
       })
 
-      // Open modal
       fireEvent.click(screen.getByText('New Note'))
 
-      // Enter invalid name with colon
       const input = screen.getByPlaceholderText('my-note')
       fireEvent.change(input, { target: { value: 'bad:name' } })
 
-      // Should show validation error
       await waitFor(() => {
         expect(screen.getByText(/invalid characters/i)).toBeInTheDocument()
       })
     })
 
     it('shows error for name too long', async () => {
-      renderWithRouter(<Notes />)
+      renderWithRouter(<Notes folderPath="Diary" />)
 
       await waitFor(() => {
         expect(screen.getByText('New Note')).toBeInTheDocument()
@@ -72,7 +118,7 @@ describe('Notes Component', () => {
     })
 
     it('shows error for name starting with dot', async () => {
-      renderWithRouter(<Notes />)
+      renderWithRouter(<Notes folderPath="Diary" />)
 
       await waitFor(() => {
         expect(screen.getByText('New Note')).toBeInTheDocument()
@@ -89,7 +135,7 @@ describe('Notes Component', () => {
     })
 
     it('disables create button when validation fails', async () => {
-      renderWithRouter(<Notes />)
+      renderWithRouter(<Notes folderPath="Diary" />)
 
       await waitFor(() => {
         expect(screen.getByText('New Note')).toBeInTheDocument()
@@ -101,7 +147,7 @@ describe('Notes Component', () => {
       fireEvent.change(input, { target: { value: 'bad:name' } })
 
       await waitFor(() => {
-        const createBtn = screen.getByRole('button', { name: /create/i })
+        const createBtn = screen.getByRole('button', { name: /^create$/i })
         expect(createBtn).toBeDisabled()
       })
     })
@@ -114,7 +160,7 @@ describe('Notes Component', () => {
           return mockFetchResponse({ folders: ['Inbox'] })
         }
         if (url.includes('/notes/list/')) {
-          return mockFetchResponse({ notes: [] })
+          return mockFetchResponse({ notes: [], subfolders: [] })
         }
         if (options?.method === 'POST' && url.includes('/notes/create')) {
           return mockFetchResponse(
@@ -125,7 +171,7 @@ describe('Notes Component', () => {
         return mockFetchResponse({})
       })
 
-      renderWithRouter(<Notes />)
+      renderWithRouter(<Notes folderPath="Inbox" />)
 
       await waitFor(() => {
         expect(screen.getByText('New Note')).toBeInTheDocument()
@@ -149,7 +195,7 @@ describe('Notes Component', () => {
           return mockFetchResponse({ folders: ['Inbox'] })
         }
         if (url.includes('/notes/list/')) {
-          return mockFetchResponse({ notes: [] })
+          return mockFetchResponse({ notes: [], subfolders: [] })
         }
         if (options?.method === 'POST') {
           return mockFetchError('Network failed')
@@ -157,7 +203,7 @@ describe('Notes Component', () => {
         return mockFetchResponse({})
       })
 
-      renderWithRouter(<Notes />)
+      renderWithRouter(<Notes folderPath="Inbox" />)
 
       await waitFor(() => {
         expect(screen.getByText('New Note')).toBeInTheDocument()
@@ -180,10 +226,9 @@ describe('Notes Component', () => {
           return mockFetchResponse({ folders: ['Inbox'] })
         }
         if (url.includes('/notes/list/')) {
-          return mockFetchResponse({ notes: [] })
+          return mockFetchResponse({ notes: [], subfolders: [] })
         }
         if (options?.method === 'POST') {
-          // Return an error where message is an object (the bug case)
           return mockFetchResponse(
             { detail: { code: 'error', message: { nested: 'object' } } },
             500
@@ -192,7 +237,7 @@ describe('Notes Component', () => {
         return mockFetchResponse({})
       })
 
-      renderWithRouter(<Notes />)
+      renderWithRouter(<Notes folderPath="Inbox" />)
 
       await waitFor(() => {
         expect(screen.getByText('New Note')).toBeInTheDocument()
@@ -204,9 +249,7 @@ describe('Notes Component', () => {
       fireEvent.change(input, { target: { value: 'test' } })
       fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
 
-      // Should not crash, should show stringified error or fallback
       await waitFor(() => {
-        // Either shows the stringified object or a fallback message
         const errorDiv = screen.queryByText(/nested|error occurred/i)
         expect(errorDiv).toBeInTheDocument()
       })
@@ -217,10 +260,10 @@ describe('Notes Component', () => {
     it('navigates to new note on successful creation', async () => {
       global.fetch = vi.fn((url, options) => {
         if (url.includes('/notes/folders')) {
-          return mockFetchResponse({ folders: ['Inbox'] })
+          return mockFetchResponse({ folders: ['Diary'] })
         }
         if (url.includes('/notes/list/')) {
-          return mockFetchResponse({ notes: [] })
+          return mockFetchResponse({ notes: [], subfolders: [] })
         }
         if (options?.method === 'POST') {
           return mockFetchResponse({ success: true, filename: 'mynote.md' })
@@ -228,7 +271,7 @@ describe('Notes Component', () => {
         return mockFetchResponse({})
       })
 
-      renderWithRouter(<Notes />)
+      renderWithRouter(<Notes folderPath="Diary" />)
 
       await waitFor(() => {
         expect(screen.getByText('New Note')).toBeInTheDocument()

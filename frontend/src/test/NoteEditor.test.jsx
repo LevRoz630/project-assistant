@@ -3,14 +3,13 @@ import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderWithRouter, mockFetchResponse } from './utils'
 import NoteEditor from '../components/NoteEditor'
 
-// Mock useParams and useNavigate
+// Mock useNavigate
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
   return {
     ...actual,
     useNavigate: () => mockNavigate,
-    useParams: () => ({ folder: 'Diary', filename: 'test-note.md' }),
   }
 })
 
@@ -33,7 +32,7 @@ describe('NoteEditor Component', () => {
         })
       )
 
-      renderWithRouter(<NoteEditor />)
+      renderWithRouter(<NoteEditor folder="Diary" filename="test-note.md" />)
 
       await waitFor(() => {
         expect(screen.getByDisplayValue(/# Test Note/)).toBeInTheDocument()
@@ -48,7 +47,7 @@ describe('NoteEditor Component', () => {
         )
       )
 
-      renderWithRouter(<NoteEditor />)
+      renderWithRouter(<NoteEditor folder="Diary" filename="test-note.md" />)
 
       await waitFor(() => {
         expect(screen.getByText(/Note not found/i)).toBeInTheDocument()
@@ -64,7 +63,7 @@ describe('NoteEditor Component', () => {
         )
       )
 
-      renderWithRouter(<NoteEditor />)
+      renderWithRouter(<NoteEditor folder="Diary" filename="test-note.md" />)
 
       await waitFor(() => {
         // Should show fallback message, not crash
@@ -83,7 +82,7 @@ describe('NoteEditor Component', () => {
         })
       )
 
-      renderWithRouter(<NoteEditor />)
+      renderWithRouter(<NoteEditor folder="Diary" filename="test.md" />)
 
       await waitFor(() => {
         expect(screen.getByText('Saved')).toBeInTheDocument()
@@ -99,7 +98,7 @@ describe('NoteEditor Component', () => {
         })
       )
 
-      renderWithRouter(<NoteEditor />)
+      renderWithRouter(<NoteEditor folder="Diary" filename="test.md" />)
 
       await waitFor(() => {
         expect(screen.getByDisplayValue(/# Test/)).toBeInTheDocument()
@@ -129,7 +128,7 @@ describe('NoteEditor Component', () => {
         })
       })
 
-      renderWithRouter(<NoteEditor />)
+      renderWithRouter(<NoteEditor folder="Diary" filename="test.md" />)
 
       await waitFor(() => {
         expect(screen.getByDisplayValue(/# Original/)).toBeInTheDocument()
@@ -164,7 +163,7 @@ describe('NoteEditor Component', () => {
         })
       })
 
-      renderWithRouter(<NoteEditor />)
+      renderWithRouter(<NoteEditor folder="Diary" filename="test.md" />)
 
       await waitFor(() => {
         expect(screen.getByDisplayValue(/# Test/)).toBeInTheDocument()
@@ -196,7 +195,7 @@ describe('NoteEditor Component', () => {
         })
       )
 
-      renderWithRouter(<NoteEditor />)
+      renderWithRouter(<NoteEditor folder="Diary" filename="test.md" />)
 
       await waitFor(() => {
         expect(screen.getByDisplayValue(/# Test Header/)).toBeInTheDocument()

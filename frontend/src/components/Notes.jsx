@@ -54,6 +54,7 @@ function Notes({ folderPath }) {
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [folderError, setFolderError] = useState(null)
   const [folderValidationError, setFolderValidationError] = useState(null)
+  const [authError, setAuthError] = useState(false)
   const navigate = useNavigate()
 
   // Determine the current path from prop (URL-driven)
@@ -83,10 +84,11 @@ function Notes({ folderPath }) {
       if (res.ok) {
         const data = await res.json()
         setFolders(data.folders || ['Diary', 'Projects', 'Study', 'Inbox'])
+      } else if (res.status === 401) {
+        setAuthError(true)
       }
     } catch (error) {
       console.error('Failed to load folders:', error)
-      setFolders(['Diary', 'Projects', 'Study', 'Inbox'])
     } finally {
       setLoading(false)
     }
@@ -102,6 +104,8 @@ function Notes({ folderPath }) {
         const data = await res.json()
         setNotes(data.notes || [])
         setSubfolders(data.subfolders || [])
+      } else if (res.status === 401) {
+        setAuthError(true)
       }
     } catch (error) {
       console.error('Failed to load notes:', error)
@@ -312,6 +316,26 @@ function Notes({ folderPath }) {
     </div>
   )
 
+  // Auth error view
+  if (authError) {
+    return (
+      <>
+        <div className="content-header">
+          <h2>Notes</h2>
+        </div>
+        <div className="content-body">
+          <div className="empty-state">
+            <h3>Session expired</h3>
+            <p>Your storage account session has expired. Please sign in again to access your notes.</p>
+            <a href={`${API_BASE}/auth/login`} className="btn btn-primary">
+              Sign in
+            </a>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   // Top-level folder view (no path selected)
   if (!currentPath) {
     return (
@@ -333,7 +357,7 @@ function Notes({ folderPath }) {
                   <div className="loading-spinner"></div>
                 </div>
               ) : (
-                (Array.isArray(folders) ? folders : ['Diary', 'Projects', 'Study', 'Inbox']).map((folder) => {
+                folders.map((folder) => {
                   const name = typeof folder === 'string' ? folder : folder.name
                   return (
                     <button

@@ -85,7 +85,7 @@ describe('Actions Component', () => {
     render(<Actions />)
 
     await waitFor(() => {
-      expect(screen.getByText(/Test Task/i)).toBeInTheDocument()
+      expect(screen.getByText(/Create Task: Test Task/i)).toBeInTheDocument()
       expect(screen.getByText(/AI suggested creating this task/i)).toBeInTheDocument()
     })
   })
@@ -182,16 +182,16 @@ describe('Actions Component', () => {
 
     render(<Actions />)
 
-    // Initially on pending tab
+    // Initially on pending tab - use the action title which is unique
     await waitFor(() => {
-      expect(screen.getByText(/Test Task/i)).toBeInTheDocument()
+      expect(screen.getByText(/Create Task: Test Task/i)).toBeInTheDocument()
     })
 
     // Switch to history tab
     await userEvent.click(screen.getByRole('button', { name: /history/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/Meeting/i)).toBeInTheDocument()
+      expect(screen.getByText(/Create Event: Meeting/i)).toBeInTheDocument()
     })
   })
 

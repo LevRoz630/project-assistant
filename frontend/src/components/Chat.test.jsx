@@ -45,13 +45,16 @@ describe('Chat Component', () => {
   })
 
   it('sends message on form submit', async () => {
-    global.fetch = vi.fn(() =>
-      mockFetchResponse({
+    global.fetch = vi.fn((url) => {
+      if (url.includes('/chat/history')) {
+        return mockFetchResponse({ conversations: [] })
+      }
+      return mockFetchResponse({
         response: 'AI response here',
         context_used: false,
         sources: null,
       })
-    )
+    })
 
     render(<Chat />)
 
@@ -73,13 +76,16 @@ describe('Chat Component', () => {
   })
 
   it('displays user message after sending', async () => {
-    global.fetch = vi.fn(() =>
-      mockFetchResponse({
+    global.fetch = vi.fn((url) => {
+      if (url.includes('/chat/history')) {
+        return mockFetchResponse({ conversations: [] })
+      }
+      return mockFetchResponse({
         response: 'Hello!',
         context_used: false,
         sources: null,
       })
-    )
+    })
 
     render(<Chat />)
 
@@ -93,13 +99,16 @@ describe('Chat Component', () => {
   })
 
   it('displays AI response after receiving', async () => {
-    global.fetch = vi.fn(() =>
-      mockFetchResponse({
+    global.fetch = vi.fn((url) => {
+      if (url.includes('/chat/history')) {
+        return mockFetchResponse({ conversations: [] })
+      }
+      return mockFetchResponse({
         response: 'This is the AI response',
         context_used: false,
         sources: null,
       })
-    )
+    })
 
     render(<Chat />)
 
@@ -115,13 +124,16 @@ describe('Chat Component', () => {
   })
 
   it('displays sources when context is used', async () => {
-    global.fetch = vi.fn(() =>
-      mockFetchResponse({
+    global.fetch = vi.fn((url) => {
+      if (url.includes('/chat/history')) {
+        return mockFetchResponse({ conversations: [] })
+      }
+      return mockFetchResponse({
         response: 'Based on your notes...',
         context_used: true,
         sources: ['PersonalAI/Diary/2024-01-15.md'],
       })
-    )
+    })
 
     render(<Chat />)
 
@@ -137,14 +149,17 @@ describe('Chat Component', () => {
     })
   })
 
-  it('clears chat when clear button is clicked', async () => {
-    global.fetch = vi.fn(() =>
-      mockFetchResponse({
+  it('clears chat when new chat button is clicked', async () => {
+    global.fetch = vi.fn((url) => {
+      if (url.includes('/chat/history')) {
+        return mockFetchResponse({ conversations: [] })
+      }
+      return mockFetchResponse({
         response: 'Response',
         context_used: false,
         sources: null,
       })
-    )
+    })
 
     render(<Chat />)
 
@@ -159,17 +174,23 @@ describe('Chat Component', () => {
       expect(screen.getByText('Hello')).toBeInTheDocument()
     })
 
-    // Clear chat
-    const clearButton = screen.getByRole('button', { name: /clear chat/i })
-    await userEvent.click(clearButton)
+    // Click New Chat button
+    const newChatButton = screen.getByRole('button', { name: /new chat/i })
+    await userEvent.click(newChatButton)
 
     expect(screen.queryByText('Hello')).not.toBeInTheDocument()
     expect(screen.getByText('Start a conversation')).toBeInTheDocument()
   })
 
   it('shows loading state while sending', async () => {
-    // Make fetch hang
-    global.fetch = vi.fn(() => new Promise(() => {}))
+    let resolveChat
+    global.fetch = vi.fn((url) => {
+      if (url.includes('/chat/history')) {
+        return mockFetchResponse({ conversations: [] })
+      }
+      // Return a pending promise for chat send
+      return new Promise((resolve) => { resolveChat = resolve })
+    })
 
     render(<Chat />)
 
@@ -179,8 +200,10 @@ describe('Chat Component', () => {
     const sendButton = screen.getByRole('button', { name: /send/i })
     await userEvent.click(sendButton)
 
-    // Send button should be disabled
-    expect(sendButton).toBeDisabled()
+    // Send button should be replaced by Stop button while loading
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /stop/i })).toBeInTheDocument()
+    })
   })
 
   it('toggles context settings panel', async () => {
@@ -217,7 +240,7 @@ describe('Chat Component', () => {
     await userEvent.click(sendButton)
 
     await waitFor(() => {
-      expect(screen.getByText(/something went wrong/i)).toBeInTheDocument()
+      expect(screen.getByText(/Network error/i)).toBeInTheDocument()
     })
   })
 })
