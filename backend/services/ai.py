@@ -13,10 +13,39 @@ from .prompts import AIRole, get_role_prompt
 settings = get_settings()
 
 
+_PROVIDER_KEYS = {
+    "anthropic": "anthropic_api_key",
+    "openai": "openai_api_key",
+    "google": "google_api_key",
+}
+
+_DEFAULT_MODELS = {
+    "anthropic": "claude-sonnet-4-20250514",
+    "openai": "gpt-4o",
+    "google": "gemini-2.0-flash",
+}
+
+
+def _resolve_provider(provider: str | None) -> str:
+    """Resolve the LLM provider, falling back to whichever has a key configured."""
+    requested = provider or settings.default_llm_provider
+    # If the requested provider has a key, use it
+    if getattr(settings, _PROVIDER_KEYS.get(requested, ""), ""):
+        return requested
+    # Otherwise, find the first provider that has a key
+    for name, key_attr in _PROVIDER_KEYS.items():
+        if getattr(settings, key_attr, ""):
+            return name
+    raise ValueError(
+        "No LLM API key configured. Set one of: "
+        "ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY"
+    )
+
+
 def get_llm(provider: str | None = None, model: str | None = None):
     """Get the LLM instance based on provider."""
-    provider = provider or settings.default_llm_provider
-    model = model or settings.default_model
+    provider = _resolve_provider(provider)
+    model = model or _DEFAULT_MODELS.get(provider, settings.default_model)
 
     if provider == "anthropic":
         return ChatAnthropic(
