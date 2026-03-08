@@ -242,6 +242,8 @@ async def approve_action(request: Request, action_id: str):
     if not token:
         raise HTTPException(status_code=401, detail="Session expired")
 
+    await _sync_actions_from_cloud(token)
+
     store = get_action_store()
     action = store.get(action_id)
 
@@ -279,6 +281,8 @@ async def reject_action(request: Request, action_id: str):
     token = get_access_token(session_id)
     if not token:
         raise HTTPException(status_code=401, detail="Session expired")
+
+    await _sync_actions_from_cloud(token)
 
     store = get_action_store()
     action = store.get(action_id)
