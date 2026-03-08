@@ -4,7 +4,7 @@
   height: calc(100vh - 120px);
   background: var(--bg-primary);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -86,7 +86,7 @@
 .folder-badge {
   background: rgba(255, 255, 255, 0.2);
   padding: 2px 6px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
   font-weight: 600;
   min-width: 18px;
@@ -142,7 +142,7 @@
 
 .email-date {
   font-size: 11px;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   flex-shrink: 0;
   margin-left: var(--space-2);
 }
@@ -158,7 +158,7 @@
 
 .email-preview {
   font-size: var(--text-xs);
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -214,7 +214,7 @@
 
 /* Email body HTML content styling */
 .email-body a {
-  color: var(--accent);
+  color: var(--accent-soft);
 }
 
 .email-body img {

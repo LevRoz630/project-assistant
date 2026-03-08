@@ -2,8 +2,8 @@
   margin-bottom: 24px;
   padding: 16px;
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
 }
 
 .accounts-intro p {
@@ -20,8 +20,8 @@
 
 .account-card {
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
   padding: 20px;
 }
 
@@ -30,7 +30,7 @@
   gap: 14px;
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .account-icon {
@@ -59,7 +59,7 @@
 }
 
 .account-card-header p {
-  font-size: 0.875rem;
+  font-size: var(--text-base);
   color: var(--text-secondary);
   margin: 0;
 }
@@ -108,13 +108,13 @@
 }
 
 .account-email {
-  font-size: 0.875rem;
+  font-size: var(--text-base);
   color: var(--text-secondary);
 }
 
 .account-badge {
-  font-size: 0.75rem;
-  color: var(--accent);
+  font-size: var(--text-xs);
+  color: var(--accent-soft);
   margin-top: 4px;
 }
 
@@ -130,7 +130,7 @@
 
 .btn-sm {
   padding: 6px 12px;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 
 .accounts-list-section {
@@ -138,7 +138,7 @@
 }
 
 .accounts-list-section h3 {
-  font-size: 1rem;
+  font-size: var(--text-lg);
   margin-bottom: 16px;
   color: var(--text-secondary);
 }
@@ -155,23 +155,23 @@
   align-items: center;
   padding: 14px 16px;
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
 }
 
 .account-purpose-badge {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   padding: 4px 10px;
   background: var(--bg-tertiary);
-  border-radius: 12px;
+  border-radius: var(--radius-full);
   color: var(--text-secondary);
 }
 
 .accounts-help {
   padding: 20px;
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
 }
 
 .accounts-help h4 {
@@ -195,7 +195,7 @@
 .accounts-help p {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 0.875rem;
+  font-size: var(--text-base);
 }
 
 @media (max-width: 768px) {

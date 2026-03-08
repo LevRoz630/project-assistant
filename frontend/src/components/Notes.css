@@ -19,11 +19,9 @@
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--bg-tertiary);
   border: 1px solid var(--glass-border);
-  border-radius: 20px;
+  border-radius: var(--radius-full);
   color: var(--text-secondary);
   text-align: left;
   transition: all var(--transition-normal);
@@ -37,9 +35,8 @@
 
 .folder-item.active {
   background: var(--accent-glass);
-  border-color: rgba(59, 130, 246, 0.4);
-  color: var(--accent);
-  box-shadow: var(--glow-accent);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: var(--accent-soft);
 }
 
 .notes-list {
@@ -54,24 +51,21 @@
   align-items: center;
   gap: 14px;
   padding: 14px var(--space-4);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--bg-tertiary);
   border: 1px solid var(--glass-border);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
   transition: all var(--transition-normal);
-  box-shadow: var(--glass-shadow);
 }
 
 .note-item:hover {
   border-color: var(--glass-border-hover);
-  transform: translateY(-2px);
-  box-shadow: var(--glass-shadow), 0 8px 24px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .note-icon {
-  color: var(--accent);
+  color: var(--accent-soft);
   opacity: 0.8;
 }
 
@@ -87,7 +81,7 @@
 
 .note-meta {
   font-size: var(--text-xs);
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
 }
 
 /* Breadcrumbs */
@@ -109,7 +103,7 @@
 
 .breadcrumb-item:hover {
   color: var(--text-primary);
-  background: var(--glass-bg);
+  background: var(--bg-tertiary);
 }
 
 .breadcrumb-item.breadcrumb-active {
@@ -123,7 +117,7 @@
 }
 
 .breadcrumb-separator {
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   opacity: 0.5;
   margin: 0 2px;
   user-select: none;
@@ -135,12 +129,12 @@
 }
 
 .subfolder-item .note-icon {
-  color: var(--accent);
+  color: var(--accent-soft);
   opacity: 1;
 }
 
 .subfolder-chevron {
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   opacity: 0.5;
   margin-left: auto;
 }
@@ -164,16 +158,14 @@
 }
 
 .modal {
-  background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
-  border-radius: 20px;
+  border-radius: var(--radius-xl);
   padding: var(--space-6);
   width: 100%;
   max-width: 400px;
-  box-shadow: var(--glass-shadow), 0 0 60px rgba(0, 0, 0, 0.3);
-  animation: scaleIn 0.25s ease;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+  animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes scaleIn {
@@ -211,18 +203,18 @@
   .folder-item {
     padding: 8px 14px;
     font-size: var(--text-base);
-    border-radius: 16px;
+    border-radius: var(--radius-full);
   }
 
   .note-item {
     padding: var(--space-3);
-    border-radius: 12px;
+    border-radius: var(--radius-md);
   }
 
   .modal {
     margin: var(--space-4);
     max-width: calc(100vw - 32px);
     padding: var(--space-5);
-    border-radius: 16px;
+    border-radius: var(--radius-lg);
   }
 }

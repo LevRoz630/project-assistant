@@ -1,10 +1,8 @@
 .view-toggle {
   display: flex;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--bg-tertiary);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: var(--space-1);
   gap: var(--space-1);
 }
@@ -27,8 +25,7 @@
 
 .view-btn.active {
   background: var(--accent-glass);
-  color: var(--accent);
-  box-shadow: var(--glow-accent);
+  color: var(--accent-soft);
 }
 
 .date-header {
@@ -55,13 +52,10 @@
   align-items: flex-start;
   gap: var(--space-4);
   padding: var(--space-4);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--bg-tertiary);
   border: 1px solid var(--glass-border);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   transition: all var(--transition-normal);
-  box-shadow: var(--glass-shadow);
 }
 
 .event-item:hover {
@@ -71,18 +65,18 @@
 
 .event-item.all-day {
   border-left: 3px solid var(--accent);
-  background: linear-gradient(90deg, var(--accent-glass) 0%, var(--glass-bg) 15%);
+  background: linear-gradient(90deg, var(--accent-glass) 0%, var(--bg-tertiary) 15%);
 }
 
 .event-time {
   width: 100px;
   flex-shrink: 0;
   font-size: var(--text-base);
-  color: var(--accent);
+  color: var(--accent-soft);
   font-weight: 500;
   padding: var(--space-1) var(--space-2);
   background: var(--accent-glass);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   text-align: center;
 }
 
@@ -108,7 +102,7 @@
 
 .event-organizer {
   font-size: var(--text-xs);
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   margin-top: var(--space-1);
 }
 
@@ -140,12 +134,10 @@
 /* Modal overrides for calendar */
 .modal {
   max-width: 450px;
-  background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
-  border-radius: 20px;
-  box-shadow: var(--glass-shadow), 0 0 60px rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
 }
 
 .modal-header {
@@ -189,7 +181,7 @@
 }
 
 .modal {
-  animation: scaleIn 0.25s ease;
+  animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes scaleIn {
@@ -208,7 +200,7 @@
     flex-direction: column;
     gap: var(--space-2);
     padding: var(--space-3);
-    border-radius: 12px;
+    border-radius: var(--radius-md);
   }
 
   .event-time {
