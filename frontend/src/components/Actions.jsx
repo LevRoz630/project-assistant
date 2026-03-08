@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import './Actions.css'
 import { API_BASE } from '../config'
+import { useToast } from './Toast'
 
 function Actions() {
   const [pendingActions, setPendingActions] = useState([])
@@ -8,6 +9,7 @@ function Actions() {
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(null)
   const [activeTab, setActiveTab] = useState('pending')
+  const { toast } = useToast()
 
   useEffect(() => {
     loadActions()
@@ -46,13 +48,15 @@ function Actions() {
       })
 
       if (res.ok) {
+        toast.success('Action approved')
         await loadActions()
       } else {
         const error = await res.json()
-        alert(`Failed to approve: ${error.detail}`)
+        toast.error(`Failed to approve: ${error.detail}`)
       }
     } catch (error) {
       console.error('Failed to approve action:', error)
+      toast.error('Failed to approve action')
     } finally {
       setProcessing(null)
     }
@@ -67,13 +71,15 @@ function Actions() {
       })
 
       if (res.ok) {
+        toast.info('Action rejected')
         await loadActions()
       } else {
         const error = await res.json()
-        alert(`Failed to reject: ${error.detail}`)
+        toast.error(`Failed to reject: ${error.detail}`)
       }
     } catch (error) {
       console.error('Failed to reject action:', error)
+      toast.error('Failed to reject action')
     } finally {
       setProcessing(null)
     }
@@ -242,7 +248,7 @@ function Actions() {
             </div>
           ) : (
             pendingActions.map((action) => (
-              <div key={action.id} className="action-card pending">
+              <div key={action.id} className={`action-card pending ${processing === action.id ? 'processing' : ''}`}>
                 <div className="action-header">
                   <span className="action-icon">{getActionIcon(action.type)}</span>
                   <span className="action-title">{getActionTitle(action)}</span>

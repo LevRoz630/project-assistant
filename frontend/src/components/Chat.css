@@ -185,6 +185,11 @@
   color: var(--text-primary);
   font-size: var(--text-lg);
   transition: all var(--transition-fast);
+  resize: none;
+  overflow-y: auto;
+  max-height: 150px;
+  line-height: 1.5;
+  min-height: 44px;
 }
 
 .chat-input:focus {
@@ -195,6 +200,10 @@
 
 .chat-input:disabled {
   opacity: 0.6;
+}
+
+.chat-input-form .btn {
+  align-self: flex-end;
 }
 
 .toggle-label {

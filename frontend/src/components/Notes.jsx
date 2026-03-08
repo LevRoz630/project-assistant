@@ -343,9 +343,14 @@ function Notes({ folderPath }) {
         <div className="content-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2>Notes</h2>
-            <button className="btn btn-secondary" onClick={() => { setShowNewFolder(true); setFolderError(null); }}>
-              New Folder
-            </button>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button className="btn btn-primary" onClick={createTodayDiary}>
+                {"Today's Diary"}
+              </button>
+              <button className="btn btn-secondary" onClick={() => { setShowNewFolder(true); setFolderError(null); }}>
+                New Folder
+              </button>
+            </div>
           </div>
         </div>
 

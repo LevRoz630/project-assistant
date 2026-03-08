@@ -565,13 +565,23 @@ function Chat() {
         </div>
 
         <form className="chat-input-form" onSubmit={handleSubmit}>
-          <input
-            type="text"
+          <textarea
             className="chat-input"
             placeholder="Type your message..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                if (input.trim() && !loading) handleSubmit(e)
+              }
+            }}
             disabled={loading}
+            rows={1}
+            onInput={(e) => {
+              e.target.style.height = 'auto'
+              e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px'
+            }}
           />
           {loading ? (
             <button type="button" className="btn btn-danger" onClick={handleCancel}>
@@ -580,6 +590,7 @@ function Chat() {
           ) : (
             <button type="submit" className="btn btn-primary" disabled={!input.trim()}>
               Send
+              <span className="kbd" style={{ marginLeft: '6px' }}>Enter</span>
             </button>
           )}
         </form>
