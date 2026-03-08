@@ -111,14 +111,18 @@ function Tasks() {
         credentials: 'include',
         body: JSON.stringify({
           title: newTaskTitle,
-          list_id: activeList.id,
+          list_id: activeList.is_virtual ? null : activeList.id,
         }),
       })
 
       if (res.ok) {
         setNewTaskTitle('')
         setShowNewTask(false)
-        loadTasks(activeList.id)
+        if (activeList.id === '__important__') {
+          loadImportantTasks()
+        } else {
+          loadTasks(activeList.id)
+        }
       }
     } catch (error) {
       console.error('Failed to create task:', error)
