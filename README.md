@@ -11,10 +11,8 @@ Built to cut down on aimless scrolling — one place to plan, write, and think.
 - **Tasks** — Microsoft To Do, full CRUD.
 - **Calendar** — Outlook calendar view and event creation.
 - **Email** — Read and search your inbox.
-- **GitHub** — Issues, PRs, repos. Read and write.
-- **Telegram** — Read your messages (optional, needs your own API creds).
-- **ArXiv** — Daily digest of papers ranked by your interests.
 
+  
 ## Stack
 
 | | |
@@ -94,31 +92,12 @@ Copy `.env.example` and fill in:
 - At least one of: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`
 
 **Optional:**
-- `GITHUB_TOKEN`, `GITHUB_USERNAME` — for GitHub integration
-- `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_PHONE` — for Telegram
-- `ARXIV_CATEGORIES`, `ARXIV_INTERESTS` — for paper digest
+
 - `ONEDRIVE_BASE_FOLDER` (default: `PersonalAI`)
 - `DEFAULT_LLM_PROVIDER` (default: `anthropic`)
 
 See `.env.example` for the full list.
 
-## Project structure
-
-```
-backend/
-├── main.py           # FastAPI app
-├── auth.py           # OAuth, multi-account
-├── config.py         # Settings
-├── routers/          # chat, notes, tasks, calendar, email, github, telegram, arxiv, actions, sync
-└── services/         # graph client, ai, vectors, sync, actions
-
-frontend/src/
-├── App.jsx
-└── components/       # Chat, Notes, NoteEditor, Tasks, Calendar, Email, Actions
-
-tests/
-├── conftest.py       # Fixtures, mock graph client
-└── test_notes.py     # Notes endpoint tests
 ```
 
 ## OneDrive folder structure
