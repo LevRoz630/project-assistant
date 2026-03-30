@@ -6,6 +6,7 @@ from datetime import datetime
 from ..auth import get_access_token
 from ..config import get_settings
 from fastapi import APIRouter, HTTPException, Request
+from ..services.timezone import resolve_timezone
 from pydantic import BaseModel
 from ..services.actions import (
     ActionStatus,
@@ -255,7 +256,7 @@ async def approve_action(request: Request, action_id: str):
 
     # Execute the action
     try:
-        result = await _execute_action(action, token)
+        result = await _execute_action(action, token, resolve_timezone(request))
         store.update_status(action_id, ActionStatus.EXECUTED)
         await _persist_actions_to_cloud(token)
         return {
@@ -318,7 +319,7 @@ async def delete_action(request: Request, action_id: str):
         raise HTTPException(status_code=404, detail="Action not found")
 
 
-async def _execute_action(action: ProposedAction, token: str) -> dict:
+async def _execute_action(action: ProposedAction, token: str, timezone: str = "UTC") -> dict:
     """Execute an approved action."""
     client = GraphClient(token)
 
@@ -345,6 +346,7 @@ async def _execute_action(action: ProposedAction, token: str) -> dict:
             title=data.get("title", "Untitled Task"),
             body=data.get("body"),
             due_date=data.get("due_date"),
+            timezone=timezone,
         )
 
         return {"task_id": result.get("id"), "title": result.get("title")}
@@ -363,7 +365,7 @@ async def _execute_action(action: ProposedAction, token: str) -> dict:
         if data.get("body") is not None:
             updates["body"] = {"content": data["body"], "contentType": "text"}
         if data.get("due_date"):
-            updates["dueDateTime"] = {"dateTime": data["due_date"], "timeZone": "UTC"}
+            updates["dueDateTime"] = {"dateTime": data["due_date"], "timeZone": timezone}
         if data.get("status"):
             updates["status"] = data["status"]
         if data.get("importance"):

@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     enable_web_search: bool = True  # Enable AI to search the web
     enable_url_fetch: bool = True  # Enable AI to fetch and read webpage content
 
+    # Timezone (IANA format, used as fallback when browser timezone unavailable)
+    timezone: str = "Europe/London"
+
     # Frontend
     frontend_url: str = "http://localhost:5173"
 

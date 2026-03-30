@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from ..auth import get_access_token_for_service
 from ..services.context_cache import invalidate_context
 from ..services.graph import GraphClient
+from ..services.timezone import now_in_tz, resolve_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +64,10 @@ async def list_calendars(client: GraphClient = Depends(get_graph_client)):
 
 
 @router.get("/today")
-async def get_today_events(client: GraphClient = Depends(get_graph_client)):
+async def get_today_events(request: Request, client: GraphClient = Depends(get_graph_client)):
     """Get today's calendar events."""
     try:
-        now = datetime.now()
+        now = now_in_tz(request)
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         end = start + timedelta(days=1)
 
@@ -83,10 +84,10 @@ async def get_today_events(client: GraphClient = Depends(get_graph_client)):
 
 
 @router.get("/week")
-async def get_week_events(client: GraphClient = Depends(get_graph_client)):
+async def get_week_events(request: Request, client: GraphClient = Depends(get_graph_client)):
     """Get this week's calendar events."""
     try:
-        now = datetime.now()
+        now = now_in_tz(request)
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         end = start + timedelta(days=7)
 
@@ -159,6 +160,7 @@ async def create_event(
             body=event.body,
             location=event.location,
             attendees=event.attendees,
+            timezone=resolve_timezone(request),
         )
 
         # Invalidate calendar cache so next chat message gets fresh data

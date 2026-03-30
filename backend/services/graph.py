@@ -186,7 +186,8 @@ class GraphClient:
         return await self._request("GET", f"/me/todo/lists/{list_id}/tasks", params=params)
 
     async def create_task(
-        self, list_id: str, title: str, body: str | None = None, due_date: str | None = None
+        self, list_id: str, title: str, body: str | None = None, due_date: str | None = None,
+        timezone: str = "UTC",
     ) -> dict:
         """Create a new task."""
         task_data = {"title": title}
@@ -195,7 +196,7 @@ class GraphClient:
             task_data["body"] = {"content": body, "contentType": "text"}
 
         if due_date:
-            task_data["dueDateTime"] = {"dateTime": due_date, "timeZone": "UTC"}
+            task_data["dueDateTime"] = {"dateTime": due_date, "timeZone": timezone}
 
         return await self._request("POST", f"/me/todo/lists/{list_id}/tasks", json=task_data)
 
@@ -259,12 +260,13 @@ class GraphClient:
         body: str | None = None,
         location: str | None = None,
         attendees: list[str] | None = None,
+        timezone: str = "UTC",
     ) -> dict:
         """Create a calendar event."""
         event_data = {
             "subject": subject,
-            "start": {"dateTime": start_datetime, "timeZone": "UTC"},
-            "end": {"dateTime": end_datetime, "timeZone": "UTC"},
+            "start": {"dateTime": start_datetime, "timeZone": timezone},
+            "end": {"dateTime": end_datetime, "timeZone": timezone},
         }
 
         if body:

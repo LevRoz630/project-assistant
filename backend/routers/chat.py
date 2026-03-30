@@ -14,6 +14,7 @@ from pydantic import BaseModel, field_validator
 from ..services.actions import ActionType, get_action_store
 from ..services.ai import generate_response, generate_response_stream
 from ..services.graph import GraphClient
+from ..services.timezone import now_in_tz, resolve_timezone
 from ..services.prompts import detect_role
 from ..services.sanitization import PromptSanitizer
 from ..services.sanitization import (
@@ -33,9 +34,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-def _get_current_datetime() -> str:
+def _get_current_datetime(request: Request) -> str:
     """Get current date/time formatted for AI context."""
-    return datetime.now().strftime("%A, %B %d, %Y at %H:%M")
+    now = now_in_tz(request)
+    return now.strftime("%A, %B %d, %Y at %H:%M %Z")
 settings = get_settings()
 
 
@@ -197,15 +199,18 @@ async def _get_tasks_context(token: str) -> str:
         return f"[Error fetching tasks: {e}]"
 
 
-async def _get_calendar_context(token: str) -> str:
+async def _get_calendar_context(token: str, timezone: str = "UTC") -> str:
     """Fetch and format calendar events for AI context."""
+    from zoneinfo import ZoneInfo
+
     client = GraphClient(token)
 
     try:
-        # Get today's and tomorrow's events
-        now = datetime.now()
-        start = now.replace(hour=0, minute=0, second=0).isoformat() + "Z"
-        end = (now + timedelta(days=2)).replace(hour=23, minute=59, second=59).isoformat() + "Z"
+        # Get today's and tomorrow's events in the user's timezone
+        tz = ZoneInfo(timezone)
+        now = datetime.now(tz)
+        start = now.replace(hour=0, minute=0, second=0).isoformat()
+        end = (now + timedelta(days=2)).replace(hour=23, minute=59, second=59).isoformat()
 
         result = await client.get_calendar_view(start, end)
         events = result.get("value", [])
@@ -402,7 +407,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
         if cached:
             return cached
         try:
-            result = await asyncio.wait_for(_get_calendar_context(token), timeout=20.0)
+            result = await asyncio.wait_for(_get_calendar_context(token, resolve_timezone(request)), timeout=20.0)
             # Cache if successful (don't cache error messages)
             if result and not result.startswith("["):
                 set_cached_context("calendar", session_id, result)
@@ -461,7 +466,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
                 calendar_context=calendar_context,
                 email_context=email_context,
                 chat_history=history,
-                current_date=_get_current_datetime(),
+                current_date=_get_current_datetime(request),
                 role=role,
             ),
             timeout=90.0  # 90 second timeout for LLM response
@@ -504,7 +509,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
                             calendar_context=calendar_context,
                             email_context=email_context,
                             chat_history=history,
-                            current_date=_get_current_datetime(),
+                            current_date=_get_current_datetime(request),
                             role=role,
                         ),
                         timeout=90.0
@@ -545,7 +550,7 @@ async def send_message(request: Request, chat_request: ChatRequest):
                             calendar_context=calendar_context,
                             email_context=email_context,
                             chat_history=history,
-                            current_date=_get_current_datetime(),
+                            current_date=_get_current_datetime(request),
                             role=role,
                         ),
                         timeout=90.0
@@ -642,7 +647,7 @@ async def stream_message(request: Request, chat_request: ChatRequest):
         if cached:
             return cached
         try:
-            result = await asyncio.wait_for(_get_calendar_context(token), timeout=20.0)
+            result = await asyncio.wait_for(_get_calendar_context(token, resolve_timezone(request)), timeout=20.0)
             # Cache if successful
             if result and not result.startswith("["):
                 set_cached_context("calendar", session_id, result)
@@ -705,7 +710,7 @@ async def stream_message(request: Request, chat_request: ChatRequest):
                 calendar_context=calendar_context,
                 email_context=email_context,
                 chat_history=history,
-                current_date=_get_current_datetime(),
+                current_date=_get_current_datetime(request),
                 role=role,
             ):
                 yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
@@ -901,7 +906,7 @@ async def preload_context(request: Request):
         if get_cached_context("calendar", session_id):
             return True
         try:
-            result = await asyncio.wait_for(_get_calendar_context(token), timeout=20.0)
+            result = await asyncio.wait_for(_get_calendar_context(token, resolve_timezone(request)), timeout=20.0)
             if result and not result.startswith("["):
                 set_cached_context("calendar", session_id, result)
                 return True
