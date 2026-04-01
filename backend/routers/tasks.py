@@ -23,7 +23,7 @@ def get_graph_client(request: Request) -> GraphClient:
             status_code=401, detail="Session expired or no tasks account configured"
         )
 
-    return GraphClient(token)
+    return GraphClient(token, timezone=resolve_timezone(request))
 
 
 class TaskCreate(BaseModel):
@@ -235,7 +235,6 @@ async def create_task(
             title=task.title,
             body=task.body,
             due_date=task.due_date,
-            timezone=resolve_timezone(request),
         )
 
         # Invalidate tasks cache so next chat message gets fresh data
@@ -273,7 +272,7 @@ async def update_task(
         if task.body is not None:
             updates["body"] = {"content": task.body, "contentType": "text"}
         if task.due_date is not None:
-            updates["dueDateTime"] = {"dateTime": task.due_date, "timeZone": resolve_timezone(request)}
+            updates["dueDateTime"] = {"dateTime": task.due_date, "timeZone": client.timezone or "UTC"}
         if task.status is not None:
             updates["status"] = task.status
 

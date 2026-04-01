@@ -26,12 +26,15 @@ class GraphClient:
             )
         return cls._shared_client
 
-    def __init__(self, access_token: str):
+    def __init__(self, access_token: str, timezone: str | None = None):
         self.access_token = access_token
+        self.timezone = timezone
         self.headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
         }
+        if timezone:
+            self.headers["Prefer"] = f'outlook.timezone="{timezone}"'
 
     async def _request(
         self,
@@ -187,7 +190,6 @@ class GraphClient:
 
     async def create_task(
         self, list_id: str, title: str, body: str | None = None, due_date: str | None = None,
-        timezone: str = "UTC",
     ) -> dict:
         """Create a new task."""
         task_data = {"title": title}
@@ -196,7 +198,7 @@ class GraphClient:
             task_data["body"] = {"content": body, "contentType": "text"}
 
         if due_date:
-            task_data["dueDateTime"] = {"dateTime": due_date, "timeZone": timezone}
+            task_data["dueDateTime"] = {"dateTime": due_date, "timeZone": self.timezone or "UTC"}
 
         return await self._request("POST", f"/me/todo/lists/{list_id}/tasks", json=task_data)
 
@@ -260,13 +262,13 @@ class GraphClient:
         body: str | None = None,
         location: str | None = None,
         attendees: list[str] | None = None,
-        timezone: str = "UTC",
     ) -> dict:
         """Create a calendar event."""
+        tz = self.timezone or "UTC"
         event_data = {
             "subject": subject,
-            "start": {"dateTime": start_datetime, "timeZone": timezone},
-            "end": {"dateTime": end_datetime, "timeZone": timezone},
+            "start": {"dateTime": start_datetime, "timeZone": tz},
+            "end": {"dateTime": end_datetime, "timeZone": tz},
         }
 
         if body:

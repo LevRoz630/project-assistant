@@ -321,7 +321,7 @@ async def delete_action(request: Request, action_id: str):
 
 async def _execute_action(action: ProposedAction, token: str, timezone: str = "UTC") -> dict:
     """Execute an approved action."""
-    client = GraphClient(token)
+    client = GraphClient(token, timezone=timezone)
 
     if action.type == ActionType.CREATE_TASK:
         data = action.data
@@ -346,7 +346,6 @@ async def _execute_action(action: ProposedAction, token: str, timezone: str = "U
             title=data.get("title", "Untitled Task"),
             body=data.get("body"),
             due_date=data.get("due_date"),
-            timezone=timezone,
         )
 
         return {"task_id": result.get("id"), "title": result.get("title")}

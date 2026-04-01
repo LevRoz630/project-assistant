@@ -28,7 +28,7 @@ def get_graph_client(request: Request) -> GraphClient:
             status_code=401, detail="Session expired or no calendar account configured"
         )
 
-    return GraphClient(token)
+    return GraphClient(token, timezone=resolve_timezone(request))
 
 
 class EventCreate(BaseModel):
@@ -160,7 +160,6 @@ async def create_event(
             body=event.body,
             location=event.location,
             attendees=event.attendees,
-            timezone=resolve_timezone(request),
         )
 
         # Invalidate calendar cache so next chat message gets fresh data

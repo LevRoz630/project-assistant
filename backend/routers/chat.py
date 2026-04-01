@@ -203,7 +203,7 @@ async def _get_calendar_context(token: str, timezone: str = "UTC") -> str:
     """Fetch and format calendar events for AI context."""
     from zoneinfo import ZoneInfo
 
-    client = GraphClient(token)
+    client = GraphClient(token, timezone=timezone)
 
     try:
         # Get today's and tomorrow's events in the user's timezone
